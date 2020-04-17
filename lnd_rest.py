@@ -1028,11 +1028,9 @@ def blahroute():
 	# lnreq = PayByRoute(send_route)
 	# lnreq
 
-
-
-
-print(listChannels())
-code.interact(local=locals())
+if __name__ == "__main__":
+	print(listChannels())
+	code.interact(local=locals())
 
 
 
