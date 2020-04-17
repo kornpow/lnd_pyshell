@@ -1,0 +1,3 @@
+#!/bin/bash
+LNDIP=$NODE_IP
+sshfs lightning@$LNDIP:/home/lightning /home/skorn/kornpow_cloud/

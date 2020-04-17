@@ -1,0 +1,3 @@
+#!/bin/bash
+source ~/env/bin/activate
+python3 /home/skorn/Documents/lightning/LND-iot-app-launcher/scripts/lnd-rest.py

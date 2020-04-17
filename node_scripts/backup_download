@@ -1,0 +1,5 @@
+#!/bin/bash
+DATE=$(date +%F_%H-%M-%S)
+FILENAME=/home/skorn/Documents/lightning/channel_backup/channel-${DATE}.backup
+scp lightning@$NODE_IP:/home/lightning/.lnd/data/chain/bitcoin/mainnet/channel.backup /home/skorn/Documents/lightning/channel_backup/
+mv /home/skorn/Documents/lightning/channel_backup/channel.backup $FILENAME

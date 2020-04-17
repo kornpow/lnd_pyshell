@@ -1,0 +1,2 @@
+#!/bin/bash
+ssh lightning@$NODE_IP
