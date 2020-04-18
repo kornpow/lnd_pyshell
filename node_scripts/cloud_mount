@@ -1,3 +1,9 @@
 #!/bin/bash
 LNDIP=$NODE_IP
-sshfs lightning@$LNDIP:/home/lightning /home/skorn/kornpow_cloud/
+LNDLOCAL=$HOME/.lnd
+LNDCLOUD=/home/lightning/.lnd
+# where to mount filesystem of node server
+CLOUDMNT=$HOME
+mkdir -p $LNDLOCAL
+
+sshfs lightning@$LNDIP:$LNDCLOUD $LNDLOCAL

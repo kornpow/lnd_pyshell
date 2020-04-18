@@ -15,7 +15,8 @@ import os
 import urllib.parse
 
 # LND_DIR = '/home/lightning/.lnd/'
-LND_DIR = f'{os.getenv("HOME")}/kornpow_cloud/.lnd/'
+# LND_DIR = f'{os.getenv("HOME")}/kornpow_cloud/.lnd/'
+LND_DIR = f'{os.getenv("HOME")}/.lnd/'
 print(LND_DIR)
 # Get Macaroon into a useable form!
 # TODO: delete me?
@@ -37,67 +38,6 @@ print(base_url)
 
 # THIS HOLDS A CACHE OF PUB-KEY to ALIAS CONVERSIONS
 pkdb = {}
-
-
-# GET: channelbalance
-url1 = '/v1/balance/channels'
-# GET: getinfo
-url2 = '/v1/getinfo'
-# GET: listpayments
-url3 = '/v1/payments'
-# GET: getnodeinfo
-url4 = '/v1/graph/node/{}'
-# GET listchannels, POST: openchannelsync
-# data = {'sat_per_byte': None, 'local_funding_amount': None, 'node_pubkey_string':None}
-url5 = '/v1/channels'
-# GET: decodepayreq
-url6 = '/v1/payreq/{}'
-# GET: pendingchannels
-url7 = '/v1/channels/pending'
-# POST: addinvoice, GET: listinvoices
-url8 = '/v1/invoices'
-# GET: walletbalance
-url9 = '/v1/balance/blockchain'
-# POST: sendpayment
-# payreq = 'lnbc739300n1pwm3cpqpp5uy6jc2d9666yxyl7vqhywj7e0v6fpl799tvrdetg6uh8rk4f28lsdq5vf5kwgr5v4ehg6twvumqcqzpge7hf5437r5m4u4kf4vp3w4dgvyadvnr0v5qul0yxhah67490wf74wkca0x044kn0y95v5k30ec6lyc2pfrfuf6dznlsx9k0wmt8r22gphd02cm'
-outid = '660721825987952640'
-# data = {'payment_request': payreq }
-# data = {'payment_request': payreq, 'outgoing_chan_id': outid}
-url10 = '/v1/channels/transactions'
-# GET: newaddress
-url11 = '/v1/newaddress'
-# POST: connect
-# data = {'pubkey': '3abf6f44c355dec0d5aa155bdbdd6e0c8fefe318eff402de65c6eb2e1be55dc3e', 'host': '18.221.23.28:9735'}
-# w['addr'] = data
-url12 = '/v1/peers'
-# POST: unlockwallet
-# data = {'wallet_password':base64.b64encode(b'').decode()}
-url13 = '/v1/unlockwallet'
-
-# GET: feereport
-# lnreq = sendGetRequest(url14)
-url14 = '/v1/fees'
-
-# GET: 
-url15 = '/v1/graph/routes/{pub_key}/{amt}'
-
-# POST:
-url16 = '/v1/channels/transactions/route'
-
-# GET:
-url17 = '/v1/graph/edge/{}'
-
-# POST:
-url18 = '/v1/switch'
-
-# POST
-data1 = { 
-	'fee_rate': 0.00001, 
-	'time_lock_delta': 20, 
-	'global': True, 
-	'base_fee_msat': '250', 
-}
-url19 = '/v1/chanpolicy'
 
 # ERROR List
 # {'error': 'permission denied', 'message': 'permission denied', 'code': 2}
@@ -125,9 +65,20 @@ def sendDeleteRequest(endpoint, data="",debug=False):
 	return r.json()
 
 
+##### WALLET UNLOCK! 
+def unlockWallet():
+	password = base64.b64encode(os.getenv('PASS').encode('UTF-8')).decode()
+	sendPostRequest('/v1/unlockwallet',
+		{
+			'wallet_password': password,
+			# 'recovery_window': 0,
+			# channel_backups: None
+		})
+
 
 ##### Payment Functions
 def sendPaymentByReq(payreq, oid=None, lasthop=None, allow_self=False):
+	# TODO: Add ability for this to return true/false success of payment
 	url = '/v1/channels/transactions'
 	data = {}
 	data['payment_request'] = payreq
@@ -592,9 +543,11 @@ def addInvoice(amt,memo):
 	return lnreq
 
 def lookupInvoice(invoice_rhash):
-	# lnreq = sendGetRequest(f'/v1/invoice/?r_hash={invoice_rhash}')
-	# lnreq = sendGetRequest(f'/v1/invoice/',body={'r_hash':base64.b64encode('a733467edcd121c46138ae7d6aa1b743840513b3bb04dc6d435fde242ce121a0'.encode('UTF-8')).decode()})
-	lnreq = sendGetRequest(f'/v1/invoice/',body=base64.b64encode('a733467edcd121c46138ae7d6aa1b743840513b3bb04dc6d435fde242ce121a0'.encode('UTF-8')).decode())
+	lnreq = sendGetRequest(f'/v1/invoice/{invoice_rhash}')
+	return lnreq
+
+def lookupInvoice2(invoice_rhash):
+	lnreq = sendGetRequest(f'/v1/invoice/',data=invoice_rhash)
 	return lnreq
 
 def listInvoices(max_invs=1000):
@@ -615,10 +568,6 @@ def listInvoices(max_invs=1000):
 	return df[base_columns]
 	# return df[['memo','amt_paid_sat','state','creation_date_h','settle_date_h','htlcs']]
 	# datetime.fromtimestamp(x['creation_date'])
-
-def decodePR(pr):
-	lnreq = sendGetRequest(url6,pr)
-	return lnreq
 
 def showFunds():
 	chain_funds_url = '/v1/balance/blockchain'
@@ -703,7 +652,8 @@ def getForwards(days_past=30):
 	start = int( (datetime.now() - timedelta(days=days_past)).timestamp() )
 	end = int( datetime.now().timestamp() )
 	data = { 'start_time': start, 'end_time': end,'num_max_events':2000 }
-	lnreq = sendPostRequest(url18,data)
+	url = '/v1/switch'
+	lnreq = sendPostRequest(url,data)
 	fwd_frame = pandas.DataFrame(lnreq['forwarding_events'])
 	# Convert Timestamp to nice datetime
 	fwd_frame['dt'] = fwd_frame['timestamp'].apply(lambda x: datetime.fromtimestamp(int(x)) )

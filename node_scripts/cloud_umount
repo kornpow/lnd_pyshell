@@ -1,0 +1,6 @@
+#!/bin/bash
+LNDIP=$NODE_IP
+LNDROOT=$HOME/.lnd
+# where to umount filesystem of node server
+# connected with sshfs
+sudo umount -l $LNDROOT
