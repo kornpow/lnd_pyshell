@@ -843,7 +843,7 @@ def listChainTxns(show_columns=False,add_columns=None):
 
 	return lnframe[default_columns]
 
-def sendCoins(addr,amt,toself=True):
+def sendCoins(addr,amt,toself=False):
 	url = '/v1/transactions'
 	if toself:
 		addr = getNewAddress()
@@ -871,8 +871,8 @@ def closeChannel(channel_point,output_index=0,force=False):
 	# DELETE /v1/channels/{channel_point.funding_txid_str}/{channel_point.output_index}
 
 def listCoins(min_confs=0,show_columns=False,add_columns=None):
-	# url = f'/v1/utxos?min_confs={min_confs}'
-	url = f'/v1/utxos'
+	url = f'/v1/utxos?min_confs={min_confs}&max_confs={getBlockHeight()}'
+	# url = f'/v1/utxos'
 	lnreq = sendGetRequest(url)
 
 	print(f'Received message: {pformat(lnreq)}')
