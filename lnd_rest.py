@@ -14,19 +14,13 @@ import traceback
 import os
 import urllib.parse
 
-# LND_DIR = '/home/lightning/.lnd/'
-# LND_DIR = f'{os.getenv("HOME")}/kornpow_cloud/.lnd/'
-LND_DIR = f'{os.getenv("HOME")}/.lnd/'
+LND_DIR = f'{os.getenv("HOME")}/.lnd'
 print(LND_DIR)
-# Get Macaroon into a useable form!
-# TODO: delete me?
-# with open(LND_DIR + 'mainnet/admin.macaroon', 'rb') as f:
-# 	hex_content = binascii.b2a_hex(f.read())
 
-# OR
-# This one is better!
-macaroon = codecs.encode(open(LND_DIR + 'data/chain/bitcoin/mainnet/admin.macaroon', 'rb').read(), 'hex')
-# macaroon = codecs.encode(open(LND_DIR + 'test.macaroon', 'rb').read(), 'hex')
+CHAIN = 'mainnet'
+# CHAIN = 'testnet'
+macaroon = codecs.encode(open( + f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon', 'rb').read(), 'hex')
+
 headers = {'Grpc-Metadata-macaroon': macaroon}
 
 cert_path = LND_DIR + 'tls.cert'
@@ -372,6 +366,9 @@ def getToBalance(row,target=500000):
 def listChannels(chanpoint=None,all=False,disabled=False):
 	url = '/v1/channels'
 	lnreq = sendGetRequest(url)
+	# Check if no channels
+	if not lnreq['channels']:
+		return lnreq
 	# print(lnreq)
 	d = pandas.DataFrame(lnreq['channels'])
 	y = d[['active','chan_id','channel_point','remote_pubkey','local_balance','remote_balance']].fillna(0)
