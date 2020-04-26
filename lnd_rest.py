@@ -17,13 +17,15 @@ import urllib.parse
 LND_DIR = f'{os.getenv("HOME")}/.lnd'
 print(LND_DIR)
 
+# Select mainnet or testnet
 CHAIN = 'mainnet'
 # CHAIN = 'testnet'
-macaroon = codecs.encode(open( + f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon', 'rb').read(), 'hex')
+
+macaroon = codecs.encode(open(f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon', 'rb').read(), 'hex')
 
 headers = {'Grpc-Metadata-macaroon': macaroon}
 
-cert_path = LND_DIR + 'tls.cert'
+cert_path = LND_DIR + '/tls.cert'
 
 # {'Grpc-Metadata-macaroon': b''}
 # node_ip = ''
@@ -515,6 +517,24 @@ def getAlias(pubkey,index=True):
 	except KeyError as e:
 		print(f"{pubkey} doesn't have an alias? Error: {e}")
 		return "NONE?"
+
+# TODO: Compare nodes channels for rebalancing
+# pk = '031015a7839468a3c266d662d5bb21ea4cea24226936e2864a7ca4f2c3939836e0'
+# pk1 = '0318070901e08df311cdc6cdb8a0b4a43a3690c5b32d1fb9d8e99d1a625a65e5f2'
+# d = getNodeInfo(pk, channels=True)
+# e = pandas.DataFrame(d['channels'])
+# f = e['node1_pub'].append(e['node2_pub'])
+# node_list = set(f.unique().tolist()) - {pk}
+# b = listChannels()
+#SIMPLE
+# first_hop = b[b['remote_pubkey'] == pk]
+# second_hop_partners = b[b['remote_pubkey'].isin(list(node_list))]
+
+#WORKS
+# local_chans = set(b['remote_pubkey'].tolist())
+# common_partners = node_list.intersection(local_chans)
+# cpf = pandas.DataFrame(common_partners)
+# cpf['alias'] = cpf[0].apply(lambda x: getAlias(x))
 
 def getNodeInfo(pubkey,channels=False):
 	url = '/v1/graph/node/{}'
