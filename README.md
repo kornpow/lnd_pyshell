@@ -39,6 +39,35 @@ restlisten=0.0.0.0:8080
 [Bitcoin]
 ```
 
+## Command Structure
+Run ```python3 lnd_rest.py```
+
+It will open up inside a Python shell:
+```python
+# Useful Commands:
+# Get list of all channels
+listChannels()
+# Send Payment to Payment Request
+pr = 'lntb...'
+sendPaymentByReq(pr)
+# Create New Invoice
+invoice = addInvoice(100,'testinvoice')
+# Rebalance Channels
+oid = '123123123123'
+lh = 'enterpayreq'
+fees_limit_msat = 4200
+rebalance(100000,oid,lh,fees_limit_msat)
+# Get information about a node by pubkey
+pk = '{node_pubkey}'
+getNodeInfo(pk)
+# Get Node Alias
+getAlias(pk)
+# Get Specific Fee Info About a channel
+chan_id = '{channel id}'
+getChanPolicy(chan_id)
+
+
+```
 ## Non-Local Node Usage
 1. In order to support non-local node usage, sshfs is used.
 1. Use the ```cloud_mount``` command to mount your LND directory at /home/{user}/.lnd
