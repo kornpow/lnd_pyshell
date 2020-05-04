@@ -414,15 +414,16 @@ def openChannel(ln_at_url,sats,fee=1,suc=False):
 	# apk = f'{pk}'.encode('UTF-8')
 	print(connectPeer(ln_at_url))
 	pubkey,host = ln_at_url.split('@')
+	node_pubkey = base64.b64encode(bytes.fromhex(pubkey)).decode()
 	# 'node_pubkey_string': f'{pk}',
 	data = {
-		'node_pubkey_string': f'{pubkey}',
+		# 'node_pubkey_string': f'{pubkey}',
 		# This doesnt work but theoretically this is the better way
-		# 'node_pubkey': base64.b64encode(bytes.fromhex(pubkey)).decode(),
+		'node_pubkey': node_pubkey,
 		'spend_unconfirmed': suc,
 		'local_funding_amount':f'{sats}',
 		'sat_per_byte': f'{fee}'
-		}
+	}
 	print(data)
 	lnreq = sendPostRequest(url,data)
 	# if 'error' in lnreq.keys():
