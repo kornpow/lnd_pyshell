@@ -1,9 +1,10 @@
 #!/bin/bash
 LNDIP=$NODE_IP
 LNDLOCAL=$HOME/.lnd
-LNDCLOUD=/home/lightning/.lnd
+#LNDCLOUD=/home/lightning/.lnd
+LNDCLOUD=/home/skorn/.lnd
 # where to mount filesystem of node server
 CLOUDMNT=$HOME
-mkdir -p $LNDLOCAL
+# mkdir -p $LNDLOCAL
 
-sshfs lightning@$LNDIP:$LNDCLOUD $LNDLOCAL
+sshfs skorn@$LNDIP:$LNDCLOUD $LNDLOCAL

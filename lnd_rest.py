@@ -99,71 +99,20 @@ def sendPaymentByReq(payreq, oid=None, lasthop=None, allow_self=False):
 		print(f"Error: payment_error {lnreq['payment_error']}")
 		return lnreq
 
-def rebalance_script():
-	a = listChannels()
-	a = a[a['active'] == True]
-	pl = []
-	bcount = 0
-	while len(a[a['local_balance'] < 500000]) > 0:
-		a = listChannels()
-		a = a[a['active'] == True]
-		taker = a['tobalance'].idxmax()
-		giver = a['tobalance'].idxmin()
-		oid = a.loc[giver].chan_id
-		pk = a.loc[taker].remote_pubkey
-		# Divide it down to smaller chunks for cheaper fees
-		pay_piece = int(a.loc[taker].tobalance/3)
-		if pay_piece < 75000:
-			pay_piece = int(a.loc[taker].tobalance)
-		print(f'Sending {pay_piece} from {a.loc[giver].alias} to {a.loc[taker].alias}!')
-		result = rebalance(pay_piece,oid,pk,4500,forced=True)
-		pl.append(result)
-		bcount += 1
-		print(f'Rebalanced {bcount} times!')
-	return pl
-	
-def inflows():
-	a = getForwards(60)
-	in_oids = a['chan_id_in'].unique()
-	df = pandas.DataFrame()
-	for edge in in_oids:
-		try:
-			df = df.append(getChanPolicy(edge))
-		except Exception as e:
-			print(f'Edge Not Found: {e}')
-	df = df.reset_index()
-	df = df.drop(['index'],axis=1)
-	return df[df['pubkey'] != getMyPk()]
+
+def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False):
+	url = '/v2/router/send'
+	data = {}
+	data['outgoing_chan_id'] = f'{oid}'
+	data['payment_request'] = payreq
+	if lasthop:
+		data['last_hop_pubkey'] = base64.b64encode(bytes.fromhex(lasthop)).decode()
+	lnreq = sendPostRequest(url, data)
+	pprint(lnreq)
 
 
-def outflows():
-	a = getForwards(60)
-	out_oids = a['chan_id_out'].unique()
-	df = pandas.DataFrame()
-	for edge in out_oids:
-		try:
-			df = df.append(getChanPolicy(edge))
-		except Exception as e:
-			print(f'Edge Not Found: {e}')
-	df = df.reset_index()
-	df = df.drop(['index'],axis=1)
-	return df[df['pubkey'] != getMyPk()]
-
-def flowsort():
-	c = listChannels()
-	fin = inflows()
-	fout = outflows()
-	in_nodes = set(fin.pubkey)
-	out_nodes = set(fout.pubkey)
-	routing_nodes = in_nodes.intersection(out_nodes)
-	in_nodes = in_nodes - routing_nodes
-	out_nodes = out_nodes - routing_nodes
-	c[c['remote_pubkey'].isin(list(routing_nodes)) ]
-	return in_nodes, routing_nodes, out_nodes
-
-
-def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, forced=False):
-	if not forced:
+def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
+	if not force:
 		accept = input(f'Rebalancing chan id: {outgoing_chan_id} --> {getAlias(last_hop_pubkey)}. Press: (y/n)')
 		if accept == 'y':
 			pass
@@ -231,8 +180,6 @@ def listBalanceChannels(cid_list):
 	# a[a['balanced'] > 0.5].apply(lambda x: rebalance(int(x['tobalance']),x['chan_id'],"032c17323caa51269b5124cf07a0c03772587ad8199e692cc3aae8397454367d34",4200),axis=1)
 
 
-
-
 def PayByRoute(route,pay_hash=None):
 	url = '/v1/channels/transactions/route'
 	if pay_hash == None:
@@ -280,6 +227,19 @@ def getPendingChannels():
 # b = pandas.DataFrame(lnreq['pending_force_closing_channels'][0]['channel'], index=[0])[['remote_node_pub', 'channel_point', 'capacity','local_balance']]
 # b['type'] = 'force_close'
 # c = a.append(b)
+
+
+
+# ****** Closed Channels ******
+def closedChannels():
+	url = '/v1/channels/closed'
+	lnreq = sendGetRequest(url)
+	c = pandas.DataFrame(lnreq['channels'])
+	closed_channels = c[['remote_pubkey','close_type','open_initiator','settled_balance','close_height','close_initiator']]
+	closed_channels['alias'] = closed_channels.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
+	return closed_channels
+
+
 
 # ****** GRAPH ******
 def describeGraph():
@@ -511,13 +471,14 @@ def getAlias(pubkey,index=True):
 		alias = pkdb[pubkey]
 		return alias
 	except KeyError as e:
-		lnreq = getNodeInfo(pubkey)
-		alias = lnreq['node']['alias']
-		pkdb.update({pubkey: alias})
-		return lnreq['node']['alias']
-	except KeyError as e:
-		print(f"{pubkey} doesn't have an alias? Error: {e}")
-		return "NONE?"
+		try:
+			lnreq = getNodeInfo(pubkey)
+			alias = lnreq['node']['alias']
+			pkdb.update({pubkey: alias})
+			return lnreq['node']['alias']
+		except KeyError as e:
+			print(f"{pubkey} doesn't have an alias? Error: {e}")
+			return "NONE/DELETED"
 
 # TODO: Compare nodes channels for rebalancing
 # pk = '031015a7839468a3c266d662d5bb21ea4cea24226936e2864a7ca4f2c3939836e0'
@@ -547,6 +508,15 @@ def getNodeInfo(pubkey,channels=False):
 	except KeyError as e:
 		print(f"{pubkey} doesn't have an alias? Error: {e}")
 		return "NONE?"
+
+def getNodeChannels(pubkey):
+	nodedata = getNodeInfo(pubkey,channels=True)
+	channel_frame = pandas.DataFrame(nodedata['channels'])
+	c = channel_frame.node1_pub.append(channel_frame.node2_pub)
+	d = pandas.DataFrame(c)
+	d.columns = ['pks']
+	partners = d.query(f"pks != '{pubkey}'")
+	return partners
 
 def decodePR(pr):
 	url = '/v1/payreq/{}'
@@ -702,7 +672,8 @@ def fwdByDay(ff,days_past=30):
 	# TODO: look into this logic a bit
 	for i in range(0,days_past+1):
 		num_fwds = ff.query(f'dts.str.contains("{t.strftime("%Y-%m-%d")}")').shape[0]
-		results.append((t.strftime("%Y-%m-%d"),num_fwds))
+		fees = ff.query(f'dts.str.contains("{t.strftime("%Y-%m-%d")}")').fee_msat.astype('float').sum()/1000
+		results.append((t.strftime("%Y-%m-%d"),num_fwds,fees))
 		t += timedelta(days = 1)
 	rframe = pandas.DataFrame(results)
 	return rframe
@@ -859,7 +830,8 @@ def listChainTxns(show_columns=False,add_columns=None):
 	if show_columns:
 		print(lnframe.columns)
 
-	return lnframe[default_columns]
+	# Reverse the order
+	return lnframe[default_columns][::-1]
 
 def sendCoins(addr,amt,toself=False):
 	url = '/v1/transactions'
@@ -998,6 +970,10 @@ def blahroute():
 
 if __name__ == "__main__":
 	print(listChannels())
+	b = closedChannels()
+	# c = pandas.DataFrame(b['channels'])
+	# closed_channels = c[['remote_pubkey','close_type','open_initiator','settled_balance','close_height','close_initiator']]
+	# closed_channels['alias'] = closed_channels.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
 	code.interact(local=locals())
 
 
