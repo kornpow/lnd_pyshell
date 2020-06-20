@@ -39,26 +39,41 @@ pkdb = {}
 # {'error': 'permission denied', 'message': 'permission denied', 'code': 2}
 
 ##### Base GET/POST  REQUEST
-def sendPostRequest(endpoint,data="",debug=False):
+def sendPostRequest(endpoint,data={},debug=False):
 	url = base_url + endpoint
 	r = requests.post(url, headers=headers, verify=cert_path, data=json.dumps(data))
-	# pprint(r.json())
-	return r.json()
+	try:
+		return r.json()
+	except ValueError as e:
+		print(f"Error decoding JSON: {e}")
+		print(r)
+		return r
+
 
 def sendGetRequest(endpoint, ext="", body=None, debug=False):
 	url = base_url + endpoint.format(ext)
 	if debug:
 		print(f"GET: {url}")
 	r = requests.get(url, headers=headers, verify=cert_path, data=body)
-	return r.json()
+	try:
+		return r.json()
+	except ValueError as e:
+		print(f"Error decoding JSON: {e}")
+		print(r)
+		return r
 
 def sendDeleteRequest(endpoint, data="",debug=False):
 	url = base_url + endpoint
 	if debug:
 		print(f"DELETE: {url}")
 	r = requests.delete(url, headers=headers, verify=cert_path, data=json.dumps(data))
-	# pprint(r.json())
-	return r.json()
+	try:
+		return r.json()
+	except ValueError as e:
+		print(f"Error decoding JSON: {e}")
+		print(r)
+		return r
+
 
 
 ##### WALLET UNLOCK! 
@@ -70,6 +85,36 @@ def unlockWallet():
 			# 'recovery_window': 0,
 			# channel_backups: None
 		})
+
+
+##### Route
+# listChannels().query('alias == "yalls.org"')
+# hops = pandas.DataFrame(buildRoute()['route']['hops'])
+# hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
+def buildRoute(amt=1):
+	url = '/v2/router/route'
+	data = {}
+	pk1 = base64.b64encode(bytes.fromhex('03e50492eab4107a773141bb419e107bda3de3d55652e6e1a41225f06a0bbf2d56')).decode()
+	pk2 = base64.b64encode(bytes.fromhex('03c2abfa93eacec04721c019644584424aab2ba4dff3ac9bdab4e9c97007491dda')).decode()
+	pk3 = base64.b64encode(bytes.fromhex('0360a41eb8c3fe09782ef6c984acbb003b0e1ebc4fe10ae01bab0e80d76618c8f4')).decode()
+	data['hop_pubkeys'] = [pk1,pk2,pk3]
+	data['outgoing_chan_id'] = '688959483615510529'
+	data['amt_msat'] = amt * 1000
+	lnreq = sendPostRequest(url, data)
+	return lnreq
+
+
+def sendRoute(payment_hash,route):
+	# 
+	url = '/v2/router/route/send'
+	# 
+	url = '/v2/router/send'
+	data = {}
+	data['payment_hash'] = 'ddiEsPB2t10El9ZtqRWubHAE5hmx9DaopEBDeifBD/w='
+	data['route'] = route
+	lnreq = sendPostRequest(url, data)
+	return lnreq
+
 
 
 ##### Payment Functions
@@ -100,15 +145,41 @@ def sendPaymentByReq(payreq, oid=None, lasthop=None, allow_self=False):
 		return lnreq
 
 
-def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False):
+def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False,fee_msat=3000,parts=4):
 	url = '/v2/router/send'
 	data = {}
 	data['outgoing_chan_id'] = f'{oid}'
 	data['payment_request'] = payreq
 	if lasthop:
 		data['last_hop_pubkey'] = base64.b64encode(bytes.fromhex(lasthop)).decode()
-	lnreq = sendPostRequest(url, data)
-	pprint(lnreq)
+	if allow_self:
+		data['allow_self_payment'] = True
+	
+	data['fee_limit_msat'] = fee_msat
+	data['max_parts'] = parts
+	data['timeout_seconds'] = 180
+	try:
+		lnreq = sendPostRequest(url, data)
+		lnreq = json.loads(lnreq.text.split('\n')[len(lnreq.text.split('\n')) -2] )
+		num_htlcs = len(lnreq['result']['htlcs'])
+		print(f'Number of attempted htlcs to complete transaction: {num_htlcs}')
+		htlc_frame = []
+		for htlc in lnreq['result']['htlcs']:
+			successful_htlcs = 0
+			if htlc['failure'] == None:
+				successful_htlcs += 1
+				pay_frame = pandas.DataFrame(htlc['route']['hops'])
+				pay_frame['alias'] = pay_frame.apply(lambda x: getAlias(x.pub_key), axis=1)
+				pay_frame.columns
+				pay_frame = pay_frame[['alias','chan_id','pub_key','amt_to_forward','fee','fee_msat','tlv_payload']]
+				# pay_frame
+				htlc_frame.append(pay_frame)
+
+		print(f"Routing using {successful_htlcs} successful HTLCs!")
+		return htlc_frame, lnreq
+	except KeyError as e:
+		print(f"Error: payment_error {lnreq['payment_error']}")
+		return lnreq
 
 
 def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
@@ -147,11 +218,12 @@ def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 		tf = 0
 	else:
 		hops = pandas.DataFrame(data['payment_route']['hops'])
-		print(hops.columns)
+		# print(hops.columns)
 		hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
+		# This is the printout we want to see
 		print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
-		print(hops.dtypes)
-		print(hops.columns)
+		# print(hops.dtypes)
+		# print(hops.columns)
 		tf = int(data['payment_route']['total_fees_msat'])/1000
 
 	dur = (end-start).total_seconds()
@@ -194,8 +266,8 @@ def PayByRoute(route,pay_hash=None):
 	pprint(lnreq)
 	return lnreq
 
-def getNewAddress():
-	url = '/v1/newaddress'
+def getNewAddress(old=False):
+	url = f'/v1/newaddress?type={1 if old else 0}'
 	lnreq = sendGetRequest(url)
 	return lnreq['address']
 
@@ -833,14 +905,14 @@ def listChainTxns(show_columns=False,add_columns=None):
 	# Reverse the order
 	return lnframe[default_columns][::-1]
 
-def sendCoins(addr,amt,toself=False):
+def sendCoins(addr,amt,feerate=3,toself=False):
 	url = '/v1/transactions'
 	if toself:
 		addr = getNewAddress()
 	# either target_conf or sat_per_byte used at one time
 	data = { 
 		# 'target_conf': 20,
-		'sat_per_byte': 5, 
+		'sat_per_byte': feerate, 
 		'send_all': False, 
 		'addr': f'{addr}', 
 		'amount': f'{amt}',
