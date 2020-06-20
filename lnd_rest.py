@@ -115,6 +115,11 @@ def sendRoute(payment_hash,route):
 	lnreq = sendPostRequest(url, data)
 	return lnreq
 
+def createWallet():
+	url = '/v1/initwallet'
+	data['wallet_password'] = None
+	data['cipher_seed_mnemonic'] = None
+	data['aezeed_passphrase	'] = None
 
 
 ##### Payment Functions
@@ -181,6 +186,41 @@ def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False,fee_msat=3000
 		print(f"Error: payment_error {lnreq['payment_error']}")
 		return lnreq
 
+
+
+def rebalanceV2(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
+	if not force:
+		accept = input(f'Rebalancing chan id: {outgoing_chan_id} --> {getAlias(last_hop_pubkey)}. Press: (y/n)')
+		if accept == 'y':
+			pass
+		else:
+			print('Rebalance canceled.')
+			return None, 0, None
+
+
+	payreq = addInvoice(amt,'balance1')['payment_request']
+
+	data,data2 = sendPaymentV2(payreq,outgoing_chan_id,last_hop_pubkey,True,fee_msat,8)
+	pprint(data)
+	# if data['payment_error'] != '':
+	# 	print("payment error")
+	# 	data['payment_error'].split('\n')[0]
+	# 	# Unsuccessful so costs 0 sats
+	# 	tf = 0
+	# else:
+	hops = pandas.DataFrame(data[0]['payment_route']['hops'])
+	# print(hops.columns)
+	hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
+	# This is the printout we want to see
+	print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
+	# print(hops.dtypes)
+	# print(hops.columns)
+	# tf = int(data['payment_route']['total_fees_msat'])/1000
+
+	# dur = (end-start).total_seconds()
+	# print(f'Total Routing Fees: {tf}')
+	# print(f'Payment Duration: {dur}')
+	return lnreq
 
 def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 	if not force:
@@ -265,6 +305,16 @@ def PayByRoute(route,pay_hash=None):
 	lnreq = sendPostRequest(url,data)
 	pprint(lnreq)
 	return lnreq
+
+def generateSeed():
+	password = base64.b64encode(b"testing1234").decode()
+	entropy = base64.b64encode(b'').decode()
+	url = f'/v1/genseed?seed_entropy={entropy}&aezeed_passphrase={password}'
+	url = f'/v1/genseed'
+	data['seed_entropy'] = entropy
+	data['aezeed_passphrase'] = password
+	print(url)
+	lnreq = sendPostRequest(url,data)
 
 def getNewAddress(old=False):
 	url = f'/v1/newaddress?type={1 if old else 0}'
