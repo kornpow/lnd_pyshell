@@ -187,7 +187,9 @@ def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False,fee_msat=3000
 		return lnreq
 
 
-
+# Rebalance strategy
+# keep >500000 on local_balance
+# balanced < 0.5?
 def rebalanceV2(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 	if not force:
 		accept = input(f'Rebalancing chan id: {outgoing_chan_id} --> {getAlias(last_hop_pubkey)}. Press: (y/n)')
@@ -258,17 +260,27 @@ def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 		tf = 0
 	else:
 		hops = pandas.DataFrame(data['payment_route']['hops'])
+
 		# print(hops.columns)
 		hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
+		# Get first and last hop
+		chans = list(hops.iloc[[0,-1]].chan_id)
+		print(f'hops and chans: {chans}')
+		
 		# This is the printout we want to see
 		print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
+
+		print(listChannels().query('chan_id.isin(@chans)'))
+		
 		# print(hops.dtypes)
 		# print(hops.columns)
 		tf = int(data['payment_route']['total_fees_msat'])/1000
 
+	
 	dur = (end-start).total_seconds()
 	print(f'Total Routing Fees: {tf}')
 	print(f'Payment Duration: {dur}')
+
 	return tf,dur,lnreq
 
 

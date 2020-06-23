@@ -1,0 +1,6 @@
+README.md
+setup.py
+lnd_pyshell.egg-info/PKG-INFO
+lnd_pyshell.egg-info/SOURCES.txt
+lnd_pyshell.egg-info/dependency_links.txt
+lnd_pyshell.egg-info/top_level.txt
