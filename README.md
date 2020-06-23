@@ -1,5 +1,17 @@
 # LND_pyshell
 
+## Install
+```
+pip3 install git+https://github.com/sako0938/lnd_pyshell
+```
+
+## Use
+```python
+from lnd_pyshell.lnd_rest import *
+getInfo()
+listChannels()
+```
+
 ## Dependancies
 ```
 # Create Python Virtual Environment
