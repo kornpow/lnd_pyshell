@@ -13,6 +13,7 @@ pandas.set_option('display.max_rows', None)
 import traceback
 import os
 import urllib.parse
+import hashlib
 
 LND_DIR = f'{os.getenv("HOME")}/.lnd'
 print(LND_DIR)
@@ -91,26 +92,32 @@ def unlockWallet():
 # listChannels().query('alias == "yalls.org"')
 # hops = pandas.DataFrame(buildRoute()['route']['hops'])
 # hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
-def buildRoute(amt=1):
+def buildRoute(amt=1,cltv_delta=40):
 	url = '/v2/router/route'
 	data = {}
-	pk1 = base64.b64encode(bytes.fromhex('03e50492eab4107a773141bb419e107bda3de3d55652e6e1a41225f06a0bbf2d56')).decode()
-	pk2 = base64.b64encode(bytes.fromhex('03c2abfa93eacec04721c019644584424aab2ba4dff3ac9bdab4e9c97007491dda')).decode()
+	pk1 = base64.b64encode(bytes.fromhex('03d6b14390cd178d670aa2d57c93d9519feaae7d1e34264d8bbb7932d47b75a50d')).decode()
+	pk2 = base64.b64encode(bytes.fromhex('03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019')).decode()
 	pk3 = base64.b64encode(bytes.fromhex('0360a41eb8c3fe09782ef6c984acbb003b0e1ebc4fe10ae01bab0e80d76618c8f4')).decode()
 	data['hop_pubkeys'] = [pk1,pk2,pk3]
-	data['outgoing_chan_id'] = '688959483615510529'
+	# data['outgoing_chan_id'] = '688959483615510529'
 	data['amt_msat'] = amt * 1000
+	data['final_cltv_delta'] = cltv_delta
 	lnreq = sendPostRequest(url, data)
-	return lnreq
+	return lnreq['route']
 
+# paymentHash: sha("sha256").update(preImage).digest(),
+# invoice = addInvoice(10000,'testcustomroute')
 
-def sendRoute(payment_hash,route):
-	# 
+# sendRoute()
+
+def sendRoute(r_hash,route):
+	# Send directly to route
 	url = '/v2/router/route/send'
-	# 
-	url = '/v2/router/send'
 	data = {}
-	data['payment_hash'] = 'ddiEsPB2t10El9ZtqRWubHAE5hmx9DaopEBDeifBD/w='
+	h = hashlib.sha256()
+	h.update(base64.b64decode(r_hash))
+	# data['payment_hash'] = base64.b64encode(h.digest()).decode()
+	data['payment_hash'] = r_hash
 	data['route'] = route
 	lnreq = sendPostRequest(url, data)
 	return lnreq
@@ -119,7 +126,7 @@ def createWallet():
 	url = '/v1/initwallet'
 	data['wallet_password'] = None
 	data['cipher_seed_mnemonic'] = None
-	data['aezeed_passphrase	'] = None
+	data['aezeed_passphrase'] = None
 
 
 ##### Payment Functions
@@ -150,7 +157,7 @@ def sendPaymentByReq(payreq, oid=None, lasthop=None, allow_self=False):
 		return lnreq
 
 
-def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False,fee_msat=3000,parts=4):
+def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False,fee_msat=3000,parts=1):
 	url = '/v2/router/send'
 	data = {}
 	data['outgoing_chan_id'] = f'{oid}'
@@ -580,7 +587,6 @@ def listChanFees(chan_id=None):
 def getInfo(frame=False):
 	url = '/v1/getinfo'
 	lnreq = sendGetRequest(url)
-	print(lnreq)
 	if frame:
 		lnframe = pandas.DataFrame(lnreq)
 		return lnframe
@@ -672,14 +678,14 @@ def lookupInvoice2(invoice_rhash):
 	lnreq = sendGetRequest(f'/v1/invoice/',data=invoice_rhash)
 	return lnreq
 
-def listInvoices(max_invs=1000):
+def listInvoices(max_invs=5000,offset=0):
 	url = '/v1/invoices'
-	lnreq = sendGetRequest(url+f"?num_max_invoices={max_invs}")
+	lnreq = sendGetRequest(url+f"?num_max_invoices={max_invs}&index_offset={offset}")
 	df = pandas.DataFrame(lnreq['invoices'])
 	print("Available Data Columns: ")
 	print(df.columns)
 	df = df.fillna('0')
-	print(df[['memo','amt_paid_sat','state','settled','creation_date','settle_date','r_preimage']])
+	# print(df[['memo','amt_paid_sat','state','settled','creation_date','settle_date','r_preimage']])
 	df['creation_date_h'] = df.apply(lambda x: datetime.fromtimestamp(int(x['creation_date'])) if int(x['settle_date']) != 0 else 0, axis=1 )
 	df['settle_date_h'] = df.apply(lambda x: datetime.fromtimestamp(int(x['settle_date'])) if int(x['settle_date']) != 0 else 0, axis=1 )
 	
@@ -822,12 +828,12 @@ def queryRoute(src_pk, dest_pk, oid=None, lh=None, pay_amt=123, ignore_list=None
 	# outgoing_chan_id
 	# last_hop_pubkey
 	# Convert HEX pubkeys to to base64
-	for node in ignore_list:
-		ig64 = base64.b64encode(bytes.fromhex(node)).decode().replace('+','-').replace('/','_')
-		id_url_safe = ignore
-		id_percent_encoded = urllib.parse.quote(id_url_safe)
+	# for node in ignore_list:
+	# 	ig64 = base64.b64encode(bytes.fromhex(node)).decode().replace('+','-').replace('/','_')
+	# 	id_url_safe = ignore
+	# 	id_percent_encoded = urllib.parse.quote(id_url_safe)
 	target_url = f"/v1/graph/routes/{dest_pk}/{pay_amt}?source_pub_key={src_pk}"
-	target_url += f"&use_mission_control=true&final_cltv_delta=144&fee_limit.fixed_msat=44000"
+	target_url += f"&use_mission_control=true&final_cltv_delta=40&fee_limit.fixed_msat=444000"
 	# target_url + f"&ignored_nodes="
 	if lh:
 		target_url + f"&last_hop_pubkey={lh}"
