@@ -368,6 +368,23 @@ def describeGraph():
 	lnreq = sendGetRequest(url)
 	return lnreq
 
+def exportGraphToCSV(filename='graph.json'):
+	graph = describeGraph()
+	nodes = len(graph['nodes'])
+	edges = len(graph['edges'])
+	print(f'Found { nodes } nodes and { edges } edges in the graph')
+	b = None
+	with open(filename,'w') as f:
+		b = f.write(json.dumps(graph))
+		print(b)
+		print(f'Wrote {b/1024/1204}MB of graph data to: {filename}')
+
+def nodeMetrics():
+	# doesnt work
+	url = '/v1/graph/nodemetrics?types=betweenness_centrality'
+	lnreq = sendGetRequest(url)
+	return lnreq
+
 def getMyEdges():
 	graph = describeGraph()
 	edges = graph['edges']

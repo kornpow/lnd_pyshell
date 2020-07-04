@@ -65,27 +65,60 @@ Description: # LND_pyshell
         It will open up inside a Python shell:
         ```python
         # Useful Commands:
+        
+        # Get on-chain and off-chain balance
+        showFunds()
+        
+        
         # Get list of all channels
         listChannels()
+        
+        
+        # List all on-chain transactions
+        listChainTxns()
+        
+        
+        # Get a new On-Chain Address
+        getNewAddress()
+        
+        
+        # Open a channel to a node
+        openChannel('pubkey@192.168.1.1:9735',1000000,1)
+        
         # Send Payment to Payment Request
         pr = 'lntb...'
         sendPaymentByReq(pr)
+        
+        
         # Create New Invoice
         invoice = addInvoice(100,'testinvoice')
+        
+        
         # Rebalance Channels
         oid = '123123123123'
-        lh = 'enterpayreq'
+        lh = 'lasthoppubkey'
         fees_limit_msat = 4200
         rebalance(100000,oid,lh,fees_limit_msat)
+        
+        
         # Get information about a node by pubkey
         pk = '{node_pubkey}'
         getNodeInfo(pk)
+        
+        
         # Get Node Alias
         getAlias(pk)
+        
+        
+        # Get forwarded transactions
+        # and the count number of transactions per day
+        a = getForwards()
+        fwdByDay(a)
+        
+        
         # Get Specific Fee Info About a channel
         chan_id = '{channel id}'
         getChanPolicy(chan_id)
-        
         
         ```
         ## Non-Local Node Usage
