@@ -92,13 +92,11 @@ def unlockWallet():
 # listChannels().query('alias == "yalls.org"')
 # hops = pandas.DataFrame(buildRoute()['route']['hops'])
 # hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
-def buildRoute(amt=1,cltv_delta=40):
+def buildRoute(hops,amt=1,cltv_delta=40):
 	url = '/v2/router/route'
 	data = {}
-	pk1 = base64.b64encode(bytes.fromhex('03d6b14390cd178d670aa2d57c93d9519feaae7d1e34264d8bbb7932d47b75a50d')).decode()
-	pk2 = base64.b64encode(bytes.fromhex('03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019')).decode()
-	pk3 = base64.b64encode(bytes.fromhex('0360a41eb8c3fe09782ef6c984acbb003b0e1ebc4fe10ae01bab0e80d76618c8f4')).decode()
-	data['hop_pubkeys'] = [pk1,pk2,pk3]
+	hops_base64 = [ base64.b64encode(bytes.fromhex(apk)).decode() for apk in hops ]
+	data['hop_pubkeys'] = hops_base64
 	# data['outgoing_chan_id'] = '688959483615510529'
 	data['amt_msat'] = amt * 1000
 	data['final_cltv_delta'] = cltv_delta
@@ -363,24 +361,6 @@ def getPendingChannels():
 	# a['alias'] = a['remote_node_pub'].apply(lambda x: getAlias(x))
 	return a
 
-# a = pandas.DataFrame(lnreq['pending_open_channels'][0]['channel'], index=[0])[['remote_node_pub', 'channel_point', 'capacity','local_balance']]
-# a['type'] = 'open'
-# b = pandas.DataFrame(lnreq['pending_force_closing_channels'][0]['channel'], index=[0])[['remote_node_pub', 'channel_point', 'capacity','local_balance']]
-# b['type'] = 'force_close'
-# c = a.append(b)
-
-
-
-# ****** Closed Channels ******
-def closedChannels():
-	url = '/v1/channels/closed'
-	lnreq = sendGetRequest(url)
-	c = pandas.DataFrame(lnreq['channels'])
-	closed_channels = c[['remote_pubkey','close_type','open_initiator','settled_balance','close_height','close_initiator']]
-	closed_channels['alias'] = closed_channels.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
-	return closed_channels
-
-
 
 # ****** GRAPH ******
 def describeGraph():
@@ -552,7 +532,6 @@ def openChannel(ln_at_url,sats,fee=1,suc=False):
 		# print(d[0]-d[1])
 		return error
 
-
 def streamInvoices():
 	url = base_url + '/v1/invoices/subscribe'
 	r = requests.get(url+'?add_index=1', stream=True, headers=headers, verify=cert_path)
@@ -567,6 +546,7 @@ def CP2CID(chan_point, chan_list):
 	return a.chan_id
 # need channel point to chan_id
 # Stuck here
+
 def listChanFees(chan_id=None):
 	lnreq = sendGetRequest(url14)
 	z = pandas.DataFrame(lnreq['channel_fees'])
@@ -619,24 +599,6 @@ def getAlias(pubkey,index=True):
 		except KeyError as e:
 			print(f"{pubkey} doesn't have an alias? Error: {e}")
 			return "NONE/DELETED"
-
-# TODO: Compare nodes channels for rebalancing
-# pk = '031015a7839468a3c266d662d5bb21ea4cea24226936e2864a7ca4f2c3939836e0'
-# pk1 = '0318070901e08df311cdc6cdb8a0b4a43a3690c5b32d1fb9d8e99d1a625a65e5f2'
-# d = getNodeInfo(pk, channels=True)
-# e = pandas.DataFrame(d['channels'])
-# f = e['node1_pub'].append(e['node2_pub'])
-# node_list = set(f.unique().tolist()) - {pk}
-# b = listChannels()
-#SIMPLE
-# first_hop = b[b['remote_pubkey'] == pk]
-# second_hop_partners = b[b['remote_pubkey'].isin(list(node_list))]
-
-#WORKS
-# local_chans = set(b['remote_pubkey'].tolist())
-# common_partners = node_list.intersection(local_chans)
-# cpf = pandas.DataFrame(common_partners)
-# cpf['alias'] = cpf[0].apply(lambda x: getAlias(x))
 
 def getNodeInfo(pubkey,channels=False):
 	url = '/v1/graph/node/{}'
@@ -697,84 +659,6 @@ def listInvoices(max_invs=5000,offset=0):
 	# return df[['memo','amt_paid_sat','state','creation_date_h','settle_date_h','htlcs']]
 	# datetime.fromtimestamp(x['creation_date'])
 
-def showFunds():
-	chain_funds_url = '/v1/balance/blockchain'
-	on = sendGetRequest(chain_funds_url)
-	offchain_funds_url = '/v1/balance/channels'
-	off = sendGetRequest(offchain_funds_url)
-
-	data = {'on-chain':on,'off-offchain':off}
-
-	print(f'On-Chain: {on}\t Off-Chain: {off}')
-	print(data)
-	funds_frame = pandas.DataFrame(data)
-	return funds_frame
-
-
-def addFees(hop,fee_msat):
-	hop['fee_msat'] = str(fee_msat)
-	hop['fee'] = str(floor(int(fee_msat)/1000))
-	print(getAlias(hop['pub_key']) )	
-	pprint(hop)
-	return hop
-
-def addForwardandFees(route):
-	num_hops = len(route['hops'])
-	base_fee = 20100
-	# fee_hops = num_hops - 1
-	fee_hops = num_hops
-	# No fee on last hop
-	route['total_fees_msat'] = str( fee_hops * base_fee )
-	route['total_fees'] = str( floor(int(route['total_fees_msat']) / 1000) ) 
-	route['total_amt_msat'] = str( int( route['total_amt_msat']) + int( route['total_fees_msat'] ) )
-	route['total_amt'] = str( floor(int( route['total_amt_msat'])/ 1000 ) )
-	# del route['hops'][fee_hops][]
-	pprint(route)
-	# Iterate of hops and add fees
-	hoplist = []
-	bh = getBlockHeight()
-	# tl = route['total_time_lock']
-	tl_delta_total = bh
-	max_tld = 0
-	# route['hops'].reverse()
-	time_lock = bh
-	for hop in route['hops']:
-		# Update fees on hop object
-		ahop = addFees(hop,base_fee)
-		tl_delta_total += 10
-
-		# Figure out time lock delta
-		pk = hop['pub_key']
-		cid = hop['chan_id']
-		ln = getChanPolicy(cid)
-
-		if ln['node1_pub'] == pk:
-			policy = ln['node1_policy']
-		elif ln['node2_pub'] == pk:
-			policy = ln['node2_policy']	
-
-		# Determine max time lock of all the hops
-		tld = policy['time_lock_delta']
-		time_lock += tld
-		# if tld > max_tld:
-		# 	max_tld = tld
-		# 	print(f"Found Higher Max TLD: {max_tld}")
-
-		ahop['expiry'] = time_lock
-		hoplist.append(ahop)
-
-		
-
-	# Override hoplist with hops with fees
-	# hoplist.reverse()
-	route['hops'] = hoplist
-	route['total_time_lock'] = time_lock
-	return route
-	# hoplist = []
-	# for hop in route['hops']:
-	# 	hop
-		
-
 # def getForwards(start,end):
 def getForwards(days_past=30):
 	start = int( (datetime.now() - timedelta(days=days_past)).timestamp() )
@@ -818,9 +702,7 @@ def fwdByDay(ff,days_past=30):
 	rframe = pandas.DataFrame(results)
 	return rframe
 
-
-
-# fix me, and figure out arrays!
+# TODO: fix me, and figure out arrays!
 def queryRoute(src_pk, dest_pk, oid=None, lh=None, pay_amt=123, ignore_list=None, frame=False):
 	# base64.b64encode(bytes.fromhex(last_hop_pubkey)).decode()
 	c = listChannels()
@@ -852,113 +734,40 @@ def queryRoute(src_pk, dest_pk, oid=None, lh=None, pay_amt=123, ignore_list=None
 	# It only ever returns 1 route
 	return lnreq['routes'][0]['hops']
 
-def buildCheapRoute():
-	a = getNodeInfo('03295d2e292565743a40bd44da227a820f8730877bc3dfadebade8785bcf355258',True)
-	b = pandas.DataFrame(a['channels'])
-	# c = b.channel_id[0:10].apply(lambda x: getChanPolicy(x,npk='03295d2e292565743a40bd44da227a820f8730877bc3dfadebade8785bcf355258'))
-	d = pandas.DataFrame()
-	for i in b.index[0:50]:
-		cid = b.loc[i,'channel_id']
-		e = getChanPolicy(cid,npk='03295d2e292565743a40bd44da227a820f8730877bc3dfadebade8785bcf355258')
-		print(e)
-		d = d.append(e)
-
-	d.sort_values(['fee_rate_milli_msat','fee_base_msat'],ascending=[True,False])
-# '029a8741675c4c9078b577ddc4348d602d2fb45a12e6087b617925997a84f4c02e'
-
-def routeSetExpiry(hf):
-	hf['alias'] = hf['pub_key'].apply(lambda x: getAlias(x) )
-	# Store original df
-	hf_base = hf.copy()
-	# Remove final hop from frame
-	hf = hf.head(len(hf)-1)
-	# reverse order because first hop has longest expiry
-	# hf = hf[::-1]
-	# hf.at[len(b)-1,'expiry'] = getBlockHeight() + getChanPolicy(hf.iloc[0]['chan_id'],hf.iloc[0]['pub_key']).iloc[0]['time_lock_delta']
-	# print(f'Current Block Height {getBlockHeight()}')
-	# chan_fee_info = getChanPolicy(b.iloc[len(b)-1]['chan_id'], b.iloc[len(b)-1]['pub_key'])
-	# hf.at[len(b)-1,'expiry'] = getBlockHeight() + chan_fee_info['time_lock_delta']
-	# hf.at[len(b)-2,'expiry'] = hf.at[len(b)-1,'expiry'] + chan_fee_info['time_lock_delta']
-	# Dont do last hops
-	first = True
-	for i in range(len(hf)-1, -1,-1):
-		print(f"Hop Index:{i} {getAlias(hf.at[i,'pub_key'])}")
-		chan_fee_info = getChanPolicy(hf.at[i,'chan_id'], hf.at[i,'pub_key'])
-		if first:
-			first = False
-			hf.at[i,'expiry'] = getBlockHeight() + chan_fee_info.iloc[0]['time_lock_delta']
-		else:
-			hf.at[i,'expiry'] = hf.at[i+1,'expiry'] + int(chan_fee_info.iloc[0]['time_lock_delta'])
-
-	hf = hf.append(hf_base.tail(1))
-	hf.at[len(hf)-1,'expiry'] = hf.at[len(hf)-2,'expiry']
-		# try:
-		# 	hf.at[i,'expiry'] = hf.iloc[index+1]['expiry'] + int(chan_fee_info['time_lock_delta'])
-		# except IndexError as e:
-		# 	print("Out of bounds") #, use current height!")
-			# hf.at[index,'expiry'] = getBlockHeight() + int(chan_fee_info['time_lock_delta'])
-	return hf
-
-def routeSetFees(hf):
-	# Reset Frames Fees
-	hf['fee_msat'] = 0
-	hf['fee_sat'] = 0
-	pay_amt_msat = hf.iloc[0]['amt_to_forward_msat']
-	# No fee for last hop
-	for i in range(len(hf)-2, -1,-1):
-		chan_fee_info = getChanPolicy(hf.at[i,'chan_id'], hf.at[i,'pub_key'])
-		print(chan_fee_info)
-		# Calculate fee for each hop
-		msats =  floor( int(chan_fee_info.iloc[0]['fee_rate_milli_msat'])/1000000 * 
-			int(hf.at[i,'amt_to_forward'])/1000 + 
-			int(chan_fee_info.iloc[0]['fee_base_msat']) 
-		)
-		hf.at[i,'fee_msat'] = 13000													
-		hf.at[i,'fee_sat'] = floor(hf.at[i,'fee_msat']/1000)
-		# hf.at[i,'fee_msat'] = msats															
-		# hf.at[i,'fee_sat'] = floor(msats/1000)
-	for i in range(len(hf)-1, -1,-1):
-		try:
-			hf.at[i,'amt_to_forward_msat'] = int(hf.at[i+1,'amt_to_forward_msat']) + int(hf.at[i,'fee_msat'])
-		except KeyError:
-			hf.at[i,'amt_to_forward_msat'] = int(pay_amt_msat) + int(hf.at[i,'fee_msat'])
-		hf.at[i,'amt_to_forward'] = floor(hf.at[i,'amt_to_forward_msat']/1000)
-	print(hf[['fee_sat','fee_msat','amt_to_forward','amt_to_forward_msat']])
-
-	hf['fee'] = hf['fee_sat']
-	return hf
-	# col = list(set(hf.columns) - set(['fee']))
-	# return hf[col]
-
-def hopFrame(hops):
-	# Create Frame
-	hframe = pandas.DataFrame(hops)
-	# Make sure this has a value, for some reason API doesnt return anything if false
-	hframe['tlv_payload'] = hframe['tlv_payload'].fillna(False)
-
-	# Add fee columns
-	if "fee_msat" not in list(hframe.columns):
-		hframe.insert(1,'fee_msat','0')
-	if "fee_sat" not in list(hframe.columns):
-		hframe.insert(1,'fee_sat','0')
-
-	# Store original hop dataframe
-	hframe_base = hframe
-	# Reverse order
-	# hframe = hframe.iloc[::-1]
-	# policy = pandas.DataFrame()
-	# Get policy for first hop
-	# policy = policy.append()
-	# for index, row in hframe.iterrows():
-	# 	policy = policy.append(getChanPolicy(row['chan_id'],row['pub_key']))
-
-	# policy = policy.fillna(0)
-	# policy = policy.rename(columns={'pubkey':'pub_key'})
-	# hframe = hframe.merge(policy,on='pub_key')
-	return hframe
-
-
 # ON-CHAIN
+def showFunds():
+	chain_funds_url = '/v1/balance/blockchain'
+	on = sendGetRequest(chain_funds_url)
+	offchain_funds_url = '/v1/balance/channels'
+	off = sendGetRequest(offchain_funds_url)
+
+	data = {'on-chain':on,'off-offchain':off}
+
+	print(f'On-Chain: {on}\t Off-Chain: {off}')
+	print(data)
+	funds_frame = pandas.DataFrame(data)
+	return funds_frame
+
+def listCoins(min_confs=0,show_columns=False,add_columns=None):
+	url = f'/v1/utxos?min_confs={min_confs}&max_confs={getBlockHeight()}'
+	# url = f'/v1/utxos'
+	lnreq = sendGetRequest(url)
+
+	print(f'Received message: {pformat(lnreq)}')
+	# Guard Clause
+	if 'utxos' not in lnreq.keys():
+		print('No UTXOs available')
+		return
+
+	lnframe = pandas.DataFrame(lnreq['utxos'])
+
+	default_columns = ['address_type','address','amount_sat','confirmations']
+	if add_columns != None:
+		default_columns = default_columns + add_columns
+	if show_columns:
+		print(lnframe.columns)
+	return lnframe[default_columns]
+
 def listChainTxns(show_columns=False,add_columns=None):
 	url = '/v1/transactions'
 	lnreq = sendGetRequest(url)
@@ -1000,113 +809,15 @@ def closeChannel(channel_point,output_index=0,force=False):
 	return x
 	# DELETE /v1/channels/{channel_point.funding_txid_str}/{channel_point.output_index}
 
-def listCoins(min_confs=0,show_columns=False,add_columns=None):
-	url = f'/v1/utxos?min_confs={min_confs}&max_confs={getBlockHeight()}'
-	# url = f'/v1/utxos'
+def closedChannels():
+	url = '/v1/channels/closed'
 	lnreq = sendGetRequest(url)
-
-	print(f'Received message: {pformat(lnreq)}')
-	# Guard Clause
-	if 'utxos' not in lnreq.keys():
-		print('No UTXOs available')
-		return
-
-	lnframe = pandas.DataFrame(lnreq['utxos'])
-
-	default_columns = ['address_type','address','amount_sat','confirmations']
-	if add_columns != None:
-		default_columns = default_columns + add_columns
-	if show_columns:
-		print(lnframe.columns)
-	return lnframe[default_columns]
+	c = pandas.DataFrame(lnreq['channels'])
+	closed_channels = c[['remote_pubkey','close_type','open_initiator','settled_balance','close_height','close_initiator']]
+	closed_channels['alias'] = closed_channels.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
+	return closed_channels
 
 
-def blahroute():
-	# # def buildRoute():
-	# # 	# Destination pubkey
-	# whenbtc --> lnbig
-	# Hop1
-	hoplist = []
-	pay_amt = 5000
-
-	dest_pub_key = creampay
-	src_pub_key = my_key
-	target_url = url15.format(pub_key=dest_pub_key,amt=pay_amt) + f"?source_pub_key={src_pub_key}&use_mission_control=false&final_cltv_delta=144"
-	target_url
-	lnreq = sendGetRequest(target_url)
-	hops = lnreq['routes'][0]['hops']
-	for hop in hops:
-		hoplist.append(hop)
-
-	dest_pub_key = bitrefill
-	src_pub_key = creampay
-	target_url = url15.format(pub_key=dest_pub_key,amt=pay_amt) + f"?source_pub_key={src_pub_key}&use_mission_control=false&final_cltv_delta=144"
-	target_url
-	lnreq = sendGetRequest(target_url)
-	hops = lnreq['routes'][0]['hops']
-	for hop in hops:
-		hoplist.append(hop)
-
-
-	dest_pub_key = lnbig
-	src_pub_key = bitrefill
-	target_url = url15.format(pub_key=dest_pub_key,amt=pay_amt) + f"?source_pub_key={src_pub_key}&use_mission_control=false&final_cltv_delta=144"
-	target_url
-	lnreq = sendGetRequest(target_url)
-	hops = lnreq['routes'][0]['hops']
-	for hop in hops:
-		hoplist.append(hop)
-
-	dest_pub_key = my_key
-	src_pub_key = lnbig
-	target_url = url15.format(pub_key=dest_pub_key,amt=pay_amt) + f"?source_pub_key={src_pub_key}&use_mission_control=false&final_cltv_delta=144"
-	target_url
-	lnreq = sendGetRequest(target_url)
-	hops = lnreq['routes'][0]['hops']
-	for hop in hops:
-		hoplist.append(hop)
-
-	# Add fees in sat and msat manually?? 
-	# hoplist = lambda x
-
-
-	hop_frame = pandas.DataFrame(hoplist)
-	hop_frame = hop_frame.rename(columns={'pub_key':'remote_pubkey'})
-	hop_frame['alias'] = hop_frame.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
-
-	hop_frame
-
-
-
-	# hops_fees = [addFees(hop) for hop in hoplist] 
-	send_route = lnreq['routes'][0]
-
-
-	# Uses routes object, but add all hops
-	send_route['hops'][:] = []
-	send_route['hops'] = hoplist
-
-
-
-	# send_route = addForwardandFees(send_route)
-	pprint(send_route)
-
-
-
-	# chan_info = getChannelBalance()
-	# balances = chan_info[['alias','chan_id','balanced','local_balance','remote_balance']]
-	# balances
-
-
-	# invoice = createInvoice(pay_amt,'rebalance test')
-	# pay_hash = decodePR(invoice['payment_request'])['payment_hash']
-
-	# reverse order of hops
-	# send_route['hops'].reverse()
-
-	return send_route
-	# lnreq = PayByRoute(send_route)
-	# lnreq
 
 if __name__ == "__main__":
 	print(listChannels())
@@ -1115,23 +826,3 @@ if __name__ == "__main__":
 	# closed_channels = c[['remote_pubkey','close_type','open_initiator','settled_balance','close_height','close_initiator']]
 	# closed_channels['alias'] = closed_channels.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
 	code.interact(local=locals())
-
-
-
-
-# Start at pubkey of node to rebalance
-# Set Source their and dest to bitrefill
-# Set Source of bitrefill to dest target node
-
-# bosworth
-# longest expiry, first hop
-# last hop isnt really hop at all, its the destination
-
-# The expiry is about when you get your outbound funds back but the last hop has no outbound funds
-# Yeah like if you pay a direct peer some money there is no compensation necessary for forwarding
-# fractions of a msat: rounded down
-
-# roasbeef
-# if the last node gets a CLTV of 40, and the onion says it should be 50, then they’ll reject the HTLC
-# we send the information twice basically: what the penultimate node shoudl extend, and what the final node should receive
-
