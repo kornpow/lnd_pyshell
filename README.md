@@ -8,34 +8,44 @@ pip3 install git+https://github.com/sako0938/lnd_pyshell
 ## Use
 ```python
 from lnd_pyshell.lnd_rest import *
-getInfo()
-listChannels()
 ```
 
 ## Dependancies
 ```
+# Install SSHFS, this utility mounts remote filesystems locally to a file
+sudo apt install sshfs
+
+
 # Create Python Virtual Environment
 python3 -m venv env
+
+
 # Enter Environment
 source env/bin/activate
+
+
 # Install Python dependancies
 pip3 install pandas requests
 ```
 
 ## Usage Instructions
-```
+```bash
 python3 lnd_rest.py
 # or, if ./node_scripts is added to $PATH
 lnd_pyshell
 ```
 
 ## Environment Variables
-```
+```bash
 # Add scripts to System PATH
 export PATH=$PATH:{directory to lnd_pyshell}/lnd_pyshell/node_scripts
-# Specify that node is running locally
+
+
+# Specify that your node is running locally
 export NODE_IP=0.0.0.0
-# or Specify that node is running remotely
+
+
+# or Specify that your node is running remotely
 export NODE_IP=123.456.789.101
 ```
 
@@ -58,6 +68,10 @@ It will open up inside a Python shell:
 ```python
 # Useful Commands:
 
+# Basic info
+getInfo()
+
+
 # Get on-chain and off-chain balance
 showFunds()
 
@@ -76,6 +90,9 @@ getNewAddress()
 
 # Open a channel to a node
 openChannel('pubkey@192.168.1.1:9735',1000000,1)
+# Open channel using an un-confirmed output
+openChannel('pubkey@192.168.1.1:9735',1000000,1,suc=True)
+
 
 # Send Payment to Payment Request
 pr = 'lntb...'

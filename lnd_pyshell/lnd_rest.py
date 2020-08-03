@@ -203,11 +203,8 @@ def rebalanceV2(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False)
 		else:
 			print('Rebalance canceled.')
 			return None, 0, None
-
-
 	payreq = addInvoice(amt,'balance1')['payment_request']
-
-	data,data2 = sendPaymentV2(payreq,outgoing_chan_id,last_hop_pubkey,True,fee_msat,8)
+	data,data2 = sendPaymentV2(payreq,outgoing_chan_id,last_hop_pubkey,True,fee_msat,1)
 	pprint(data)
 	# if data['payment_error'] != '':
 	# 	print("payment error")
@@ -223,11 +220,17 @@ def rebalanceV2(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False)
 	# print(hops.dtypes)
 	# print(hops.columns)
 	# tf = int(data['payment_route']['total_fees_msat'])/1000
-
 	# dur = (end-start).total_seconds()
 	# print(f'Total Routing Fees: {tf}')
 	# print(f'Payment Duration: {dur}')
 	return lnreq
+
+
+def htlcevents():
+	r = requests.get(url, headers=headers, verify=cert_path, stream=True)
+	for raw_response in r.iter_lines():
+		json_response = json.loads(raw_response)
+		print(json_response)
 
 def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 	if not force:
@@ -237,8 +240,6 @@ def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 		else:
 			print('Rebalance canceled.')
 			return None, 0, None
-
-
 	payreq = addInvoice(amt,'balance1')['payment_request']
 	endpoint = '/v1/channels/transactions'
 	bdata = {}
@@ -247,46 +248,35 @@ def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 	bdata['allow_self_payment'] = True
 	bdata['last_hop_pubkey'] = base64.b64encode(bytes.fromhex(last_hop_pubkey)).decode()
 	bdata['payment_request'] = payreq
-
-	print(bdata)
-	# return bdata
-	# lnreq = sendPostRequest(url,data=bdata,debug=True)
-
 	url = base_url + endpoint
 	start = datetime.now()
 	lnreq = requests.post(url, headers=headers, verify=cert_path, data=json.dumps(bdata))
 	end = datetime.now()
 	data = lnreq.json()
-	print(data)
+	hops = None
 	if data['payment_error'] != '':
 		print("payment error")
 		data['payment_error'].split('\n')[0]
+		print(data['payment_error'])
 		# Unsuccessful so costs 0 sats
 		tf = 0
 	else:
 		hops = pandas.DataFrame(data['payment_route']['hops'])
-
 		# print(hops.columns)
 		hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
 		# Get first and last hop
 		chans = list(hops.iloc[[0,-1]].chan_id)
 		print(f'hops and chans: {chans}')
-		
 		# This is the printout we want to see
 		print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
-
 		print(listChannels().query('chan_id.isin(@chans)'))
-		
 		# print(hops.dtypes)
 		# print(hops.columns)
 		tf = int(data['payment_route']['total_fees_msat'])/1000
-
-	
 	dur = (end-start).total_seconds()
 	print(f'Total Routing Fees: {tf}')
 	print(f'Payment Duration: {dur}')
-
-	return tf,dur,lnreq
+	return tf,dur,lnreq,hops
 
 
 def listBalanceChannels(cid_list):
@@ -351,15 +341,14 @@ def getPendingChannels():
 	pending_types = list(set(lnreq.keys()) - {'total_limbo_balance'})
 	pending_types
 	print(lnreq)
-	a = pandas.DataFrame(lnreq['pending_open_channels'])
-	print(a)
-	# for pend in pending_types:
-	# 	b = pandas.DataFrame(lnreq[pend][0]['channel'], index=[0])[['remote_node_pub', 'channel_point', 'capacity','local_balance']]
-	# 	type_list = pend.split("_")
-	# 	b['type'] = type_list[1]
-	# 	a = a.append(b)
-	# a['alias'] = a['remote_node_pub'].apply(lambda x: getAlias(x))
-	return a
+	b = []
+	for a in lnreq['pending_open_channels']:
+		a.update(**a['channel'])
+		del a['channel']
+		b.append(a)
+	c = pandas.DataFrame(b)
+	c['alias'] = c.remote_node_pub.apply(lambda x: getAlias(x))
+	return c
 
 
 # ****** GRAPH ******
@@ -395,11 +384,11 @@ def getMyEdges():
 
 
 # ****** FEE INFO ******
-def updateChanPolicy(fee_rate=0.000001,base_fee_msat='300'):
+def updateChanPolicy(fee_rate=0.000001,base_fee_msat=300,tld=40):
 	url = '/v1/chanpolicy'
 	data = {
 		'global': True,
-		'time_lock_delta': 14,
+		'time_lock_delta': tld,
 		'min_htlc_msat': 1,
 		'min_htlc_msat_specified': True,
 		'fee_rate': fee_rate,
@@ -419,25 +408,29 @@ def feeReport():
 def getChanPolicy(chanid, pubkey=None, npk=None):
 	url = '/v1/graph/edge/{}'
 	lnreq = sendGetRequest(url,str(chanid) )
-	df = pandas.DataFrame.from_dict({lnreq['node1_pub']:lnreq['node1_policy'],lnreq['node2_pub']:lnreq['node2_policy']})
-	df = df.T
-	df.reset_index(inplace=True)
-	df.rename(columns={'index':'pubkey'}, inplace=True)
-	df['alias'] = df['pubkey'].apply(lambda x: getAlias(x))
-	# If things are null it doesnt return them!!
-	df = df.fillna(0)
-	# Only get info for one side of channel
-	if pubkey:
-		print("Including PK")
-		b = df[df.pubkey == pubkey]
-		return b
-	# Get info excluding one side
-	elif npk:
-		print("Excluding PK")
-		b = df.query(f'pubkey != "{npk}"')
-		return b
-	# print(df)
-	return df
+	try:
+		df = pandas.DataFrame.from_dict({lnreq['node1_pub']:lnreq['node1_policy'],lnreq['node2_pub']:lnreq['node2_policy']})
+		df = df.T
+		df.reset_index(inplace=True)
+		df.rename(columns={'index':'pubkey'}, inplace=True)
+		df['alias'] = df['pubkey'].apply(lambda x: getAlias(x))
+		# If things are null it doesnt return them!!
+		df = df.fillna(0)
+		# Only get info for one side of channel
+		if pubkey:
+			print("Including PK")
+			b = df[df.pubkey == pubkey]
+			return b
+		# Get info excluding one side
+		elif npk:
+			print("Excluding PK")
+			b = df.query(f'pubkey != "{npk}"')
+			return b
+		# print(df)
+		return df
+	except KeyError as e:
+		print(e)
+		return None
 
 def getChannelDisabled(cid,mypk=None):
 	# Build in optimization if PK is handy
@@ -457,23 +450,48 @@ def getChannelDisabled(cid,mypk=None):
 def getBalance(row):
 	return row['local_balance'] / (row['local_balance']+row['remote_balance'])
 
-# def getToBalance(row):
-# 	return (row['balanced']-0.5) * (row['local_balance']+row['remote_balance'])
+def getChanSize(row):
+	return row['local_balance'] + row['remote_balance']
 
 def getToBalance(row,target=500000):
 	return target-row['local_balance']
 
-def listChannels(chanpoint=None,all=False,disabled=False):
+def listGetChannelFees():
+	# Get fee info to route through channel
+	data = []
+	c = listChannels()
+	c = c.sort_index()
+	for i in c.chan_id:
+		try:
+			chan_policy = getChanPolicy(i).query(f"pubkey != '{ getMyPK() }'")[['pubkey','min_htlc','fee_base_msat','fee_rate_milli_msat']].to_dict("records")[0]
+			chan_policy['chan_id'] = i
+			data.append(chan_policy)
+		except KeyError as e:
+			print(f"Error for chan id: {i} --> {e}")
+	t = pandas.DataFrame(data)
+	c['fee_base_msat'] = t['fee_base_msat'].astype(int)
+	c['fee_rate_milli_msat'] = t['fee_rate_milli_msat'].astype(int)
+	channels_with_fees = c[['active','alias','chan_id', 'remote_pubkey', 'fee_rate_milli_msat','fee_base_msat','balanced','local_balance']]
+	channels_with_fees = channels_with_fees.sort_values(['fee_rate_milli_msat','local_balance'],ascending=[1,1])
+	# t.query("fee_rate_milli_msat < 6").sort_values(['balanced','fee_rate_milli_msat'],ascending=[1,1])
+	return channels_with_fees
+
+# z = listGetChannelFees()
+# z.query("fee_rate_milli_msat <= 10").sort_values(["balanced"],ascending=[1])
+
+def listChannels(chanpoint=None,all=False,disabled=False,private=False):
 	url = '/v1/channels'
+	if private:
+		url += '?private_only=true'
 	lnreq = sendGetRequest(url)
 	# Check if no channels
 	if not lnreq['channels']:
 		return lnreq
 	# print(lnreq)
 	d = pandas.DataFrame(lnreq['channels'])
-	y = d[['active','chan_id','channel_point','remote_pubkey','local_balance','remote_balance']].fillna(0)
+	y = d[['active','chan_id','channel_point','remote_pubkey','local_balance','remote_balance','capacity']].fillna(0)
 	# Convert columns to integers
-	y[['local_balance','remote_balance']] = y[['local_balance','remote_balance']].apply(pandas.to_numeric, errors='coerce')
+	y[['local_balance','remote_balance','capacity']] = y[['local_balance','remote_balance','capacity']].apply(pandas.to_numeric, errors='coerce')
 	y['balanced'] = y.apply(getBalance, axis=1)
 	y['alias'] = y.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
 	y['tobalance'] = y.apply(getToBalance, axis=1)
@@ -493,7 +511,7 @@ def listChannels(chanpoint=None,all=False,disabled=False):
 	if all:
 		return y
 	else:
-		return y[['active','alias','balanced','tobalance','local_balance','remote_balance','chan_id','remote_pubkey']]
+		return y[['active','alias','balanced','capacity','local_balance','remote_balance','chan_id','remote_pubkey']]
 
 def connectPeer(ln_at_url):
 	url = '/v1/peers'
@@ -580,6 +598,25 @@ def listChanFees(chan_id=None):
 	return c
 
 
+# CHANNEL BACKUP
+def exportChannelBackup(outfile):
+	url = '/v1/channels/backup'
+	lnreq = sendGetRequest(url)
+	w
+
+#post
+def verifyChannelBackup(infile):
+	url = '/v1/channels/backup/verify'
+	lnreq = sendPostRequest(url)
+
+# post
+def importChannelBackup(infile):
+	url = '/v1/channels/backup/restore'
+	lnreq = sendPostRequest(url)
+
+
+
+
 # System Functions
 def getInfo(frame=False):
 	url = '/v1/getinfo'
@@ -632,10 +669,35 @@ def getNodeChannels(pubkey):
 	nodedata = getNodeInfo(pubkey,channels=True)
 	channel_frame = pandas.DataFrame(nodedata['channels'])
 	c = channel_frame.node1_pub.append(channel_frame.node2_pub)
+	c = c.append(channel_frame.channel_id)
 	d = pandas.DataFrame(c)
 	d.columns = ['pks']
 	partners = d.query(f"pks != '{pubkey}'")
 	return partners
+
+def getNodeChannels2(pubkey):
+	nodedata = getNodeInfo(pubkey,channels=True)
+	channel_frame = pandas.DataFrame(nodedata['channels'])
+	chan = []
+	try:
+		for i,row in channel_frame.iterrows():
+			if row['node1_pub'] == None or row['node2_pub'] == None:
+				continue
+			if row['node1_pub'] != pubkey:
+				chan.append({'chan_id':row['channel_id'],'pubkey':row['node1_pub'],**row['node1_policy']})
+			else:
+				chan.append({'chan_id':row['channel_id'],'pubkey':row['node2_pub'],**row['node2_policy']})
+	except Exception as e:
+		print(e)
+		print(row)
+	nodeframe = pandas.DataFrame(chan)
+	nodeframe.fee_rate_milli_msat = nodeframe.fee_rate_milli_msat.astype(int)
+	nodeframe.fee_base_msat = nodeframe.fee_base_msat.astype(int)
+	nodeframe = nodeframe.sort_values(['fee_rate_milli_msat','fee_base_msat'])
+	return nodeframe
+
+	# t = getNodeChannels2(getMyPK())
+	# "03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019" in t.pubkey.values
 
 def decodePR(pr):
 	url = '/v1/payreq/{}'
@@ -657,9 +719,14 @@ def lookupInvoice2(invoice_rhash):
 	lnreq = sendGetRequest(f'/v1/invoice/',data=invoice_rhash)
 	return lnreq
 
-def listInvoices(max_invs=5000,offset=0):
+def openInvoices():
+	invoices = listInvoices(pending=True)
+	invoices.value_msat = invoices.value_msat.astype(int)
+	return invoices
+
+def listInvoices(max_invs=5000,offset=0,pending=False):
 	url = '/v1/invoices'
-	lnreq = sendGetRequest(url+f"?num_max_invoices={max_invs}&index_offset={offset}")
+	lnreq = sendGetRequest(url+f"?num_max_invoices={max_invs}&index_offset={offset}&pending_only={pending}")
 	df = pandas.DataFrame(lnreq['invoices'])
 	print("Available Data Columns: ")
 	print(df.columns)
@@ -667,11 +734,9 @@ def listInvoices(max_invs=5000,offset=0):
 	# print(df[['memo','amt_paid_sat','state','settled','creation_date','settle_date','r_preimage']])
 	df['creation_date_h'] = df.apply(lambda x: datetime.fromtimestamp(int(x['creation_date'])) if int(x['settle_date']) != 0 else 0, axis=1 )
 	df['settle_date_h'] = df.apply(lambda x: datetime.fromtimestamp(int(x['settle_date'])) if int(x['settle_date']) != 0 else 0, axis=1 )
-	
 	# df['alias'] = Series(b).apply(lambda x: getAlias(x), axis=1 )
 	# b= list(a.index)
-	base_columns = ['memo','creation_date_h','state','settled','settle_date_h','amt_paid_sat','amt_paid_msat']
-	
+	base_columns = ['memo','r_hash','value_msat','creation_date_h','state','settled','settle_date_h','amt_paid_sat','amt_paid_msat']
 	return df[base_columns]
 	# return df[['memo','amt_paid_sat','state','creation_date_h','settle_date_h','htlcs']]
 	# datetime.fromtimestamp(x['creation_date'])
