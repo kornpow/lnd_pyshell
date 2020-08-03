@@ -2,7 +2,7 @@
 
 ## Install
 ```
-pip3 install git+https://github.com/sako0938/lnd_pyshell
+pip3 install git+https://github.com/sako0938/lnd_pyshell.git
 ```
 
 ## Use
