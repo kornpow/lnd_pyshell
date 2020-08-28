@@ -10,6 +10,8 @@ print(f'Creating code for address: {qrdata}')
 qr = pyqrcode.create(qrdata)
 print(qr.terminal(quiet_zone=1))
 
+print(pyqrcode.create(''.upper(),version=17,mode='alphanumeric').terminal(quiet_zone=1))
+
 def rebalance_script():
 	a = listChannels()
 	a = a[a['active'] == True]
@@ -88,6 +90,17 @@ def test1():
 	print("Out-Nodes: ")
 	listChannels().query("chan_id.isin(@fwd_out)")
 
+
+depleted = listChannels().query("local_balance < 400000 and active == True and capacity > 1000000")
+num_depleted = depleted.shape[0]
+
+glut = listChannels().query("remote_balance < 400000 and active == True and capacity > 1000000")
+num_glut = glut.shape[0]
+
+oid = 
+lh = 
+rebalance(100000,oid,lh,8000,force=True)
+
 def rebalance_alg():
 cycles = 0
 total_routing_fees = 0
@@ -102,7 +115,7 @@ while cycles < 10:
 	source = glut.sample(1)
 	dest = depleted.sample(1)
 	print(f'{source.alias.item()} ---> {dest.alias.item()} ')
-	a,b,c,d = rebalance(100000,source.chan_id.item(),dest.remote_pubkey.item(),16000,force=True)
+	a,b,c,d = rebalance(100000,source.chan_id.item(),dest.remote_pubkey.item(),8000,force=True)
 	total_routing_fees += a
 	error = c.json()['payment_error']
 	print(f'Payment Response: {error}')
@@ -112,7 +125,7 @@ while cycles < 10:
 		print('Successful route')
 		looper = 0
 		while error == '':
-			a,b,c,d = rebalance(100000,source.chan_id.item(),dest.remote_pubkey.item(),16000,force=True)
+			a,b,c,d = rebalance(100000,source.chan_id.item(),dest.remote_pubkey.item(),8000,force=True)
 			error = c.json()['payment_error']
 			total_routing_fees += a
 			looper += 1
@@ -229,8 +242,6 @@ async def lc():
 	await ws.send(json.dumps({}).encode('UTF-8'))
 	hi = await ws.recv()
 	print(hi)
-
-
 	async for message in ws:
 		print('receiving')
 		try:
@@ -266,7 +277,7 @@ async def htlcevents1():
 
 htlce = []
 async def htlcevents2():
-	ws = await websockets.connect("wss://10.0.0.111:8080/v2/router/htlcevents?method=GET", ping_timeout=None, ping_interval=1, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
+	ws = await websockets.connect("wss://10.0.0.111:8080/v2/router/htlcevents?method=GET", ping_timeout=None, ping_interval=20, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
 	# future = asyncio.run_coroutine_threadsafe(pinger(ws), loop)
 	print('waiting')
 	await asyncio.sleep(1)
@@ -287,7 +298,7 @@ async def htlcevents2():
 
 
 async def blockstream():
-	ws = await websockets.connect("wss://10.0.0.111:8080/v2/chainnotifier/register/blocks?method=POST", ping_timeout=None, ping_interval=1, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
+	ws = await websockets.connect("wss://10.0.0.111:8080/v2/chainnotifier/register/blocks?method=POST", ping_timeout=None, ping_interval=20, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
 	print('waiting')
 	await asyncio.sleep(1)
 	print('priming')
@@ -307,11 +318,18 @@ async def blockstream():
 
 async def main():
 	loop = asyncio.get_event_loop()
-	await htlcevents1()
+	await htlcevents2()
 	# await lc()
 	# await blockstream()
 
-asyncio.run(main())
+import threading
+
+def async_layer():
+	asyncio.run(main())
+
+# async thread
+x = threading.Thread(target=async_layer, daemon=True)
+x.start()
 
 async def fetch(client):
 	print('fetch')

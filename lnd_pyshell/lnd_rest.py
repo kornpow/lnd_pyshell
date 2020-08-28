@@ -384,10 +384,11 @@ def getMyEdges():
 
 
 # ****** FEE INFO ******
-def updateChanPolicy(fee_rate=0.000001,base_fee_msat=300,tld=40):
+def updateChanPolicy(chan_point=None,out_index=0,fee_rate=0.000001,base_fee_msat=300,tld=40):
 	url = '/v1/chanpolicy'
 	data = {
-		'global': True,
+		'global': True if chan_point is None else False,
+		# '' : ,
 		'time_lock_delta': tld,
 		'min_htlc_msat': 1,
 		'min_htlc_msat_specified': True,
@@ -677,24 +678,38 @@ def getNodeChannels(pubkey):
 
 def getNodeChannels2(pubkey):
 	nodedata = getNodeInfo(pubkey,channels=True)
-	channel_frame = pandas.DataFrame(nodedata['channels'])
+	# channel_frame = pandas.DataFrame(nodedata['channels'])
 	chan = []
-	try:
-		for i,row in channel_frame.iterrows():
-			if row['node1_pub'] == None or row['node2_pub'] == None:
-				continue
-			if row['node1_pub'] != pubkey:
-				chan.append({'chan_id':row['channel_id'],'pubkey':row['node1_pub'],**row['node1_policy']})
+	print(f"Number of channels: {len(nodedata['channels'])}")
+	for achan in nodedata['channels']:
+		try:
+			pprint(achan)
+			if achan['node1_pub'] == None or achan['node2_pub'] == None:
+				chan.append({})
+			elif achan['node1_pub'] != pubkey:
+				chan.append({'chan_id':achan['channel_id'],'pubkey':achan['node1_pub'],**achan['node1_policy'],'capacity': achan['capacity'] })
 			else:
-				chan.append({'chan_id':row['channel_id'],'pubkey':row['node2_pub'],**row['node2_policy']})
-	except Exception as e:
-		print(e)
-		print(row)
-	nodeframe = pandas.DataFrame(chan)
-	nodeframe.fee_rate_milli_msat = nodeframe.fee_rate_milli_msat.astype(int)
-	nodeframe.fee_base_msat = nodeframe.fee_base_msat.astype(int)
-	nodeframe = nodeframe.sort_values(['fee_rate_milli_msat','fee_base_msat'])
-	return nodeframe
+				chan.append({'chan_id':achan['channel_id'],'pubkey':achan['node2_pub'],**achan['node2_policy'],'capacity': achan['capacity'] })
+		except Exception as e:
+			print(e)
+	return chan
+	# try:
+	# 	for i,row in channel_frame.iterrows():
+	# 		if row['node1_pub'] == None or row['node2_pub'] == None:
+	# 			chan.append({})
+	# 		if row['node1_pub'] != pubkey:
+	# 			chan.append({'chan_id':row['channel_id'],'pubkey':row['node1_pub'],**row['node1_policy']})
+	# 		else:
+	# 			chan.append({'chan_id':row['channel_id'],'pubkey':row['node2_pub'],**row['node2_policy']})
+	# except Exception as e:
+	# 	print(e)
+	# 	print(row)
+	# code.interact(local=locals())
+	# nodeframe = pandas.DataFrame(chan)
+	# nodeframe.fee_rate_milli_msat = nodeframe.fee_rate_milli_msat.astype(int)
+	# nodeframe.fee_base_msat = nodeframe.fee_base_msat.astype(int)
+	# nodeframe = nodeframe.sort_values(['fee_rate_milli_msat','fee_base_msat'])
+
 
 	# t = getNodeChannels2(getMyPK())
 	# "03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019" in t.pubkey.values
@@ -822,10 +837,14 @@ def showFunds():
 	on = sendGetRequest(chain_funds_url)
 	offchain_funds_url = '/v1/balance/channels'
 	off = sendGetRequest(offchain_funds_url)
-
 	data = {'on-chain':on,'off-offchain':off}
-
 	print(f'On-Chain: {on}\t Off-Chain: {off}')
+	channels = listChannels()
+	a = channels.local_balance.sum() + channels.remote_balance.sum()
+	b = channels.local_balance.sum()
+	print(f"Total Remote Balance: {a}")
+	print(f"Total Local Balance {b}")
+	print(f"Local to remote ratio: {b/a}")
 	print(data)
 	funds_frame = pandas.DataFrame(data)
 	return funds_frame
@@ -855,7 +874,7 @@ def listChainTxns(show_columns=False,add_columns=None):
 	lnreq = sendGetRequest(url)
 	lnframe = pandas.DataFrame(lnreq['transactions'])
 	lnframe['ts_h'] = lnframe.apply(lambda x: datetime.fromtimestamp(int(x['time_stamp'])), axis=1 )
-	default_columns = ['ts_h','num_confirmations','amount','tx_hash','total_fees']
+	default_columns = ['ts_h','num_confirmations','amount','tx_hash','total_fees','label']
 	if add_columns != None:
 		default_columns = default_columns + add_columns
 	if show_columns:
