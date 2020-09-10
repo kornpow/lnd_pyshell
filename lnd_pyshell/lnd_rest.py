@@ -10,27 +10,61 @@ from datetime import datetime, timedelta
 from hashlib import sha256
 pandas.set_option('display.max_colwidth', None)
 pandas.set_option('display.max_rows', None)
+pandas.options.display.float_format = '{:.5f}'.format
+
+import logging
 import traceback
 import os
 import urllib.parse
 import hashlib
 
+
+polar = False
+# polar = True
+polar_port = 1
+polar_name = 'alice'
+# polar_name = 'erin'
+# polar_name = 'dave'
+
+
 LND_DIR = f'{os.getenv("HOME")}/.lnd'
+
+# LND_DIR = f'{os.getenv("HOME")}/.polar/networks/1/volumes/lnd/{polar_name}'
 print(LND_DIR)
 
 # Select mainnet or testnet
 CHAIN = 'mainnet'
+# CHAIN = 'regtest'
 # CHAIN = 'testnet'
 
+# 
 macaroon = codecs.encode(open(f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon', 'rb').read(), 'hex')
+cert_path = LND_DIR + '/tls.cert'
+
+# macaroon = codecs.encode(open('/home/skorn/.polar/networks/1/volumes/lnd/erin/data/chain/bitcoin/regtest/admin.macaroon', 'rb').read(), 'hex')
 
 headers = {'Grpc-Metadata-macaroon': macaroon}
 
-cert_path = LND_DIR + '/tls.cert'
 
-# {'Grpc-Metadata-macaroon': b''}
-# node_ip = ''
-base_url = f'https://{os.getenv("NODE_IP")}:8080'
+# cert_path = "/home/skorn/.polar/networks/1/volumes/lnd/erin/tls.cert"
+
+
+port = 8080
+
+if polar:
+	port = port + polar_port
+
+# MAIN IP
+base_url = f'https://{os.getenv("NODE_IP")}:{port}'
+
+# Polar IP 1
+# base_url = f'https://{os.getenv("NODE_IP")}:8081'
+# Polar IP 2
+# base_url = f'https://{os.getenv("NODE_IP")}:8082'
+# Polar IP 3
+# base_url = f'https://{os.getenv("NODE_IP")}:8082'
+# Polar IP 2
+# base_url = f'https://{os.getenv("NODE_IP")}:8082'
 print(base_url)
 
 # THIS HOLDS A CACHE OF PUB-KEY to ALIAS CONVERSIONS
@@ -87,6 +121,10 @@ def unlockWallet():
 			# channel_backups: None
 		})
 
+
+def getMyAlias():
+	myalias = getAlias(getMyPK())
+	return myalias
 
 ##### Route
 # listChannels().query('alias == "yalls.org"')
@@ -340,7 +378,7 @@ def getPendingChannels():
 	lnreq = sendGetRequest(url)
 	pending_types = list(set(lnreq.keys()) - {'total_limbo_balance'})
 	pending_types
-	print(lnreq)
+	# print(lnreq)
 	b = []
 	for a in lnreq['pending_open_channels']:
 		a.update(**a['channel'])
@@ -370,9 +408,20 @@ def exportGraphToCSV(filename='graph.json'):
 
 def nodeMetrics():
 	# doesnt work
-	url = '/v1/graph/nodemetrics?types=betweenness_centrality'
+	url = '/v1/graph/nodemetrics?types=1'
 	lnreq = sendGetRequest(url)
-	return lnreq
+	frame = pandas.DataFrame.from_dict(lnreq['betweenness_centrality']).T
+	frame.reset_index(inplace=True)
+	frame.rename(columns={'index':'pubkey'},inplace=True)
+	frame.sort_values(by="normalized_value",inplace=True)
+	return frame
+
+def channelMetrics():
+	chans = list(listChannels().remote_pubkey)
+	a = nodeMetrics()
+	b = a.query("pubkey.isin(@chans)")
+	# b.sort_values(by="normalized_value",inplace=True)
+	return b
 
 def getMyEdges():
 	graph = describeGraph()
@@ -388,9 +437,12 @@ def updateChanPolicy(chan_point=None,out_index=0,fee_rate=0.000001,base_fee_msat
 	url = '/v1/chanpolicy'
 	data = {
 		'global': True if chan_point is None else False,
-		# '' : ,
+		'chan_point' : {
+			'funding_txid_bytes': base64.b64encode(bytes.fromhex(chan_point)).decode(),
+			'output_index': out_index
+		},
 		'time_lock_delta': tld,
-		'min_htlc_msat': 1,
+		'min_htlc_msat': 1000,
 		'min_htlc_msat_specified': True,
 		'fee_rate': fee_rate,
 		'base_fee_msat': base_fee_msat,
@@ -665,6 +717,22 @@ def getNodeInfo(pubkey,channels=False):
 	except KeyError as e:
 		print(f"{pubkey} doesn't have an alias? Error: {e}")
 		return "NONE?"
+	return lnreq
+
+def getNodeURI(pubkey,clearnet=False):
+	"""
+	Get a connection string for a given node. Will default to a TOR address if available
+
+	pubkey: pubkey of node to get connection string for
+	clearnet: whether to override the TOR URL default
+	"""
+	nodeinfo = getNodeInfo(pubkey)
+	addresses = nodeinfo['node']['addresses']
+	addrs = []
+	for address in addresses:
+		addrs.append(f"{pubkey}@{address['addr']}" )
+	return addrs
+
 
 def getNodeChannels(pubkey):
 	nodedata = getNodeInfo(pubkey,channels=True)
@@ -921,6 +989,7 @@ def closedChannels():
 
 
 if __name__ == "__main__":
+	print(f"Welcome to the LN: {getMyAlias()}.")
 	print(listChannels())
 	# b = closedChannels()
 	# c = pandas.DataFrame(b['channels'])

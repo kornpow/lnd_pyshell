@@ -1,6 +1,7 @@
 from lnd_rest import *
 import code
 import pandas
+import pyqrcode
 
 pandas.set_option('display.max_colwidth', None)
 pandas.set_option('display.max_rows', None)
@@ -218,6 +219,10 @@ invoice = addInvoice(balance_amt,'test')
 
 oinv = openInvoices()
 oinv.query("memo == 'balance'").sort_values("value_msat")
+
+
+listChannels(all=True).query("capacity >= 1000000 and balanced > 0.8 and active == True")[["alias","chan_id","remote_pubkey","balanced"]]
+
 
 
 
