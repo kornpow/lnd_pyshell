@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lnd_pyshell"
-version = "0.1.0"
+version = "0.1.5"
 description = ""
 authors = ["Kornpow <test@email.com>"]
 
@@ -12,3 +12,6 @@ pandas = "^1.1.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^3.4"
+
+[tool.poetry.scripts]
+lnp_shell = "lnd_rest.main"

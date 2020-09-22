@@ -158,6 +158,9 @@ def rebalancePartners():
 					partners.append((hop1_pk, hop2_pk, hop3_pk))
 	return partners
 
+fh_pk = '031d2bbc75802689312220a017c6b51fa246efc59c7aa9355f6f7395038ffb4d6a'
+lh_pk = '02f3069a342ae2883a6f29e275f06f28a56a6ea2e2d96f5888a3266444dcf542b6'
+
 # disabled == False and 
 def rebalancePartners2():
 partners = []

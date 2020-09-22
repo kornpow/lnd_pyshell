@@ -1,6 +1,7 @@
 import requests
 import base64, codecs, json, requests
 import binascii
+import io
 import code
 from pprint import pprint, pformat
 import pandas
@@ -17,6 +18,9 @@ import traceback
 import os
 import urllib.parse
 import hashlib
+from rich import print
+import tempfile
+
 
 
 polar = False
@@ -37,10 +41,24 @@ CHAIN = 'mainnet'
 # CHAIN = 'regtest'
 # CHAIN = 'testnet'
 
-# 
-macaroon = codecs.encode(open(f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon', 'rb').read(), 'hex')
-cert_path = LND_DIR + '/tls.cert'
+macaroon_path = f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon'
+if os.path.exists(macaroon_path):
+	macaroon = codecs.encode(open(macaroon_path, 'rb').read(), 'hex')
+else:
+	macaroon = os.getenv("MAC")
 
+cert_path = LND_DIR + '/tls.cert'
+if not os.path.exists(cert_path):
+	tls = os.getenv("TLS")
+	a = bytes.fromhex(tls)
+	fp = tempfile.NamedTemporaryFile()
+	fn = fp.name
+	fp.write(a)
+	fp.seek(0)
+	cert_path = fn
+
+
+	
 # macaroon = codecs.encode(open('/home/skorn/.polar/networks/1/volumes/lnd/erin/data/chain/bitcoin/regtest/admin.macaroon', 'rb').read(), 'hex')
 
 headers = {'Grpc-Metadata-macaroon': macaroon}
@@ -549,7 +567,7 @@ def listChannels(chanpoint=None,all=False,disabled=False,private=False):
 	y['alias'] = y.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
 	y['tobalance'] = y.apply(getToBalance, axis=1)
 	# y = y.sort_values(by=['balanced'])
-	y = y.sort_values(by=['local_balance'])
+	y = y.sort_values(by=['local_balance'],ascending=False)
 	# y = y.sort_values(by=['balanced'])
 	# Get balance ratio of all channels
 	rb = y['remote_balance'].sum()
@@ -760,7 +778,10 @@ def getNodeChannels2(pubkey):
 				chan.append({'chan_id':achan['channel_id'],'pubkey':achan['node2_pub'],**achan['node2_policy'],'capacity': achan['capacity'] })
 		except Exception as e:
 			print(e)
-	return chan
+	
+	a = pandas.DataFrame(chan)
+	a['alias'] = a.pubkey.apply(lambda x: getAlias(x) )
+	return a
 	# try:
 	# 	for i,row in channel_frame.iterrows():
 	# 		if row['node1_pub'] == None or row['node2_pub'] == None:
@@ -880,7 +901,7 @@ def queryRoute(src_pk, dest_pk, oid=None, lh=None, pay_amt=123, ignore_list=None
 	# 	id_url_safe = ignore
 	# 	id_percent_encoded = urllib.parse.quote(id_url_safe)
 	target_url = f"/v1/graph/routes/{dest_pk}/{pay_amt}?source_pub_key={src_pk}"
-	target_url += f"&use_mission_control=true&final_cltv_delta=40&fee_limit.fixed_msat=444000"
+	target_url += f"&use_mission_control=false&final_cltv_delta=40&fee_limit.fixed_msat=444000"
 	# target_url + f"&ignored_nodes="
 	if lh:
 		target_url + f"&last_hop_pubkey={lh}"
@@ -987,12 +1008,11 @@ def closedChannels():
 	return closed_channels
 
 
+def main():
+	print(f"Welcome to the LN: [bold magenta]{getMyAlias()}[/bold magenta].")
+	print(listChannels())	
+
 
 if __name__ == "__main__":
-	print(f"Welcome to the LN: {getMyAlias()}.")
-	print(listChannels())
-	# b = closedChannels()
-	# c = pandas.DataFrame(b['channels'])
-	# closed_channels = c[['remote_pubkey','close_type','open_initiator','settled_balance','close_height','close_initiator']]
-	# closed_channels['alias'] = closed_channels.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
+	main()
 	code.interact(local=locals())
