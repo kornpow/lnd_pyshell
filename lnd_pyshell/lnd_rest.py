@@ -1010,9 +1010,10 @@ def closedChannels():
 
 def main():
 	print(f"Welcome to the LN: [bold magenta]{getMyAlias()}[/bold magenta].")
-	print(listChannels())	
+	print(listChannels())
+	code.interact(local=locals())
 
 
 if __name__ == "__main__":
 	main()
-	code.interact(local=locals())
+	

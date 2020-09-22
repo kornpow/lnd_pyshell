@@ -133,3 +133,10 @@ getChanPolicy(chan_id)
 ## Non-Local Node Usage
 1. In order to support non-local node usage, sshfs is used.
 1. Use the ```cloud_mount``` command to mount your LND directory at /home/{user}/.lnd
+
+
+## Building Wheels With Poetry
+poetry build -vvv
+poetry shell
+pip3 install dist/lnd_pyshell-0.1.5.tar.gz
+lnd_pyshell
