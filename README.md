@@ -47,6 +47,12 @@ export NODE_IP=0.0.0.0
 
 # or Specify that your node is running remotely
 export NODE_IP=123.456.789.101
+
+# Specify which macaroon to use, else looks in the default location
+export MAC={MACAROON CONVERTED TO HEX STRING}
+
+# Specify which TLS cert to use, else looks in the default location
+export TLS={TLS CERT CONVERTED TO HEX STRING}
 ```
 
 ## LND.conf
