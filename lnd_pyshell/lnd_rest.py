@@ -41,23 +41,16 @@ CHAIN = 'mainnet'
 # CHAIN = 'regtest'
 # CHAIN = 'testnet'
 
-# TODO: BASE64 conversion
-base64_img_bytes = base64_img.encode('utf-8')
-with open('decoded_image.png', 'wb') as file_to_save:
-    decoded_image_data = base64.decodebytes(base64_img_bytes)
-    file_to_save.write(decoded_image_data)
-
 macaroon_path = f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon'
 if os.path.exists(macaroon_path):
 	macaroon = codecs.encode(open(macaroon_path, 'rb').read(), 'hex')
 else:
-	macaroon = base64.decodebytes(os.getenv("MAC").encode('utf-8'))
+	macaroon = os.getenv("MAC")
 
 cert_path = LND_DIR + '/tls.cert'
 if not os.path.exists(cert_path):
-	tls = os.getenv("TLS").encode('utf-8')
-	a = base64.decodebytes(tls)
-	# a = bytes.fromhex(tls)
+	tls = os.getenv("TLS")
+	a = bytes.fromhex(tls)
 	fp = tempfile.NamedTemporaryFile()
 	fn = fp.name
 	fp.write(a)
