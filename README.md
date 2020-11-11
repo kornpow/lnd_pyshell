@@ -28,6 +28,10 @@ source env/bin/activate
 pip3 install pandas requests
 ```
 
+## Obtain Base64 Encoded Credentials
+cat ~/.lnd/tls.cert | base 64 -w 0
+cat ~/.lnd/data/chain/bitcoin/mainnet/readonly.macaroon | base 64 -w 0
+
 ## Usage Instructions
 ```bash
 python3 lnd_rest.py
