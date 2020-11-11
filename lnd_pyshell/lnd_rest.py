@@ -41,16 +41,23 @@ CHAIN = 'mainnet'
 # CHAIN = 'regtest'
 # CHAIN = 'testnet'
 
+# TODO: BASE64 conversion
+base64_img_bytes = base64_img.encode('utf-8')
+with open('decoded_image.png', 'wb') as file_to_save:
+    decoded_image_data = base64.decodebytes(base64_img_bytes)
+    file_to_save.write(decoded_image_data)
+
 macaroon_path = f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon'
 if os.path.exists(macaroon_path):
 	macaroon = codecs.encode(open(macaroon_path, 'rb').read(), 'hex')
 else:
-	macaroon = os.getenv("MAC")
+	macaroon = base64.decodebytes(os.getenv("MAC").encode('utf-8'))
 
 cert_path = LND_DIR + '/tls.cert'
 if not os.path.exists(cert_path):
-	tls = os.getenv("TLS")
-	a = bytes.fromhex(tls)
+	tls = os.getenv("TLS").encode('utf-8')
+	a = base64.decodebytes(tls)
+	# a = bytes.fromhex(tls)
 	fp = tempfile.NamedTemporaryFile()
 	fn = fp.name
 	fp.write(a)
@@ -58,13 +65,7 @@ if not os.path.exists(cert_path):
 	cert_path = fn
 
 
-	
-# macaroon = codecs.encode(open('/home/skorn/.polar/networks/1/volumes/lnd/erin/data/chain/bitcoin/regtest/admin.macaroon', 'rb').read(), 'hex')
-
 headers = {'Grpc-Metadata-macaroon': macaroon}
-
-
-# cert_path = "/home/skorn/.polar/networks/1/volumes/lnd/erin/tls.cert"
 
 
 port = 8080
@@ -769,7 +770,7 @@ def getNodeChannels2(pubkey):
 	print(f"Number of channels: {len(nodedata['channels'])}")
 	for achan in nodedata['channels']:
 		try:
-			pprint(achan)
+			# (achan)
 			if achan['node1_pub'] == None or achan['node2_pub'] == None:
 				chan.append({})
 			elif achan['node1_pub'] != pubkey:

@@ -1,0 +1,3 @@
+[console_scripts]
+lnd_pyshell = lnd_pyshell.lnd_rest:main
+

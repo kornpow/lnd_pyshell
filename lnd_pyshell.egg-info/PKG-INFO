@@ -1,0 +1,11 @@
+Metadata-Version: 1.2
+Name: lnd-pyshell
+Version: 0.1.5
+Summary: UNKNOWN
+Home-page: UNKNOWN
+Author: Kornpow
+Author-email: test@email.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3.6.1,<4.0

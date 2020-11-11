@@ -207,6 +207,78 @@ for z in hop1_partners.pubkey.values:
 				continue
 
 
+#### Rebalance Algorithm recursive
+#### START Find circular routes:
+mypk = getMyPK()
+firsthop_pk = "03d606331f19b2500f88bc373cc830492736a7d4be6ecc6cc770e0014e94ee0f58"
+lasthop_pk = "02f3069a342ae2883a6f29e275f06f28a56a6ea2e2d96f5888a3266444dcf542b6"
+
+all_routes = []
+route = []
+route.append(firsthop_pk)
+hoplist = getNodeChannels2(firsthop_pk)
+rroute = check_circular(hoplist,lasthop_pk,route)
+
+
+def check_circular(hoplist, lasthop_pk,route,depth=0):
+	depth = depth + 1
+	check_filter = hoplist.query("pubkey == @lasthop_pk")
+	print(check_filter)
+	code.interact(local=locals())
+	# Found a circular route
+	if not check_filter.empty:
+		return route.append(check_filter.pubkey.item())
+	# Not a full loop, interate again
+	else:
+		for i in list(hoplist.pubkey):
+			hoplist = getNodeChannels2(i)
+			return check_circular(hoplist, lasthop_pk, route, depth)
+
+#### END 
+
+
+#### Rebalance Algorithm for-loop
+#### START Find circular routes:
+mypk = getMyPK()
+firsthop_pk = "03d606331f19b2500f88bc373cc830492736a7d4be6ecc6cc770e0014e94ee0f58"
+lasthop_pk = "02f3069a342ae2883a6f29e275f06f28a56a6ea2e2d96f5888a3266444dcf542b6"
+
+all_routes = []
+route = []
+# All routes start with the first-hop
+route.append(firsthop_pk)
+
+def check_circular(hoppk, lasthop_pk,route,depth=0):
+	hoplist = getNodeChannels2(hoppk)
+	check_filter = hoplist.query("pubkey == @lasthop_pk")
+	if not check_filter.empty:
+		route.append(check_filter.pubkey.item())
+		# Append mypk to end of route
+		route.append(mypk)
+		return route
+	else:
+		return None
+
+found_aroute = check_circular(firsthop_pk, lasthop_pk,route)
+if found_aroute != None:
+	all_routes.append(found_aroute)
+else:
+	# Didnt find lasthop, search through next nodes channels
+	for node in list(hoplist.pubkey):
+		found_aroute = check_circular(node, lasthop_pk,[*route,node])
+		if found_aroute != None:
+			all_routes.append(found_aroute)
+		else:
+			# Didnt find lasthop, search through next nodes channels
+			for node in list(hoplist.pubkey):
+				found_aroute = check_circular(firsthop_pk, lasthop_pk,[*route,node])
+	
+	
+
+
+#### END 
+
+
 b = pandas.DataFrame(partners)
 b.columns = ["one","two","three"]
 b["oid"] = b.one.apply(lambda x: getAlias(x))
