@@ -380,8 +380,7 @@ def getNewAddress(old=False):
 
 
 def getChanPoint(chanid):
-	url = f'/v1/graph/edge/{chanid}'
-	lnreq = sendGetRequest(url)
+	lnreq = getEdgeInfo(chanid)
 	cp = lnreq['chan_point']
 	return cp
 
@@ -470,9 +469,13 @@ def feeReport():
 	return fee_frame
 
 # ****** CHANNEL ******
+def getEdgeInfo(chanid):
+	url = f'/v1/graph/edge/{chanid}'
+	lnreq = sendGetRequest(url)
+	return lnreq
+
 def getChanPolicy(chanid, pubkey=None, npk=None):
-	url = '/v1/graph/edge/{}'
-	lnreq = sendGetRequest(url,str(chanid) )
+	lnreq = getEdgeInfo(chanid)
 	try:
 		df = pandas.DataFrame.from_dict({lnreq['node1_pub']:lnreq['node1_policy'],lnreq['node2_pub']:lnreq['node2_policy']})
 		df = df.T
@@ -644,8 +647,15 @@ def CP2CID(chan_point, chan_list):
 	chan_list.reset_index(inplace=True)
 	a = chan_list[channel_point==chan_point]
 	return a.chan_id
-# need channel point to chan_id
-# Stuck here
+
+def CID2CP(chanid):
+	cp = getChanPoint(chanid)
+	return cp
+
+def CID2ListPK(chanid):
+	lnreq = getEdgeInfo(chanid)
+	list_pks = [ lnreq[akey] for akey in ['node1_pub','node2_pub'] ]
+	return list_pks
 
 def listChanFees(chan_id=None):
 	lnreq = sendGetRequest(url14)
@@ -982,13 +992,8 @@ def sendCoins(addr,amt,feerate=3,toself=False):
 	lnreq = sendPostRequest(url,data)
 	return lnreq
 
-def closeChannel(channel_point,output_index=0,force=False):
-	url = f'/v1/channels/{channel_point}/{output_index}?force={force}'
-	query = {
-		'force':force,
-		'sat_per_byte':'1'
-	}
-	# ,query
+def closeChannel(channel_point,output_index=0,fee_rate=2,force=False):
+	url = f'/v1/channels/{channel_point}/{output_index}?force={force}&sat_per_byte={fee_rate}'
 	x = sendDeleteRequest(url)
 	return x
 	# DELETE /v1/channels/{channel_point.funding_txid_str}/{channel_point.output_index}
@@ -1003,8 +1008,9 @@ def closedChannels():
 
 
 def main():
-	print(f"Welcome to the LN: [bold magenta]{getMyAlias()}[/bold magenta].")
+	print(f"Welcome to the LN: [bold cyan]{getMyAlias()}[/bold cyan].")
 	print(listChannels())
+	print("Must Import ...\n[bold red]from lnd_pyshell.lnd_rest import *[/bold red]")
 	code.interact(local=locals())
 
 
