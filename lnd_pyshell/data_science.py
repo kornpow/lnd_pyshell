@@ -301,21 +301,9 @@ listChannels(all=True).query("capacity >= 1000000 and balanced > 0.8 and active 
 
 
 
-import websockets
-import asyncio
-import ssl
-import logging
-logger = logging.getLogger('websockets')
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
 
-macaroon = codecs.encode(open(f'{LND_DIR}/data/chain/bitcoin/{CHAIN}/admin.macaroon', 'rb').read(), 'hex').decode()
 
-headers = {'Grpc-Metadata-macaroon': macaroon}
 
-ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-ssl_context.load_verify_locations('/home/skorn/.lnd/tls.cert')
 
 async def lc():
 	ws = await websockets.connect("wss://10.0.0.111:8080/v2/wallet/address/next?method=POST", ping_timeout=None, ping_interval=1, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
@@ -334,47 +322,8 @@ async def lc():
 		except asyncio.CancelledError:
 			print("cancelled?")
 
-htlce = []
-async def htlcevents1():
-	ws = await websockets.connect("wss://10.0.0.111:8080/v2/router/htlcevents?method=GET", ping_timeout=None, ping_interval=1, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
-	# future = asyncio.run_coroutine_threadsafe(pinger(ws), loop)
-	print('waiting')
-	await asyncio.sleep(1)
-	print('priming')
-	await ws.send(json.dumps({}).encode('UTF-8'))
-	while True:
-		print('receiving')
-		try:
-			hi = await asyncio.wait_for(ws.recv(), timeout=5)
-			hi = json.loads(hi)
-			hi = hi['result']
-			htlce.append(hi)
-			pprint(hi)
-		except asyncio.TimeoutError:
-			print('timeout!')
-		except asyncio.CancelledError:
-			print("cancelled?")
 
-htlce = []
-async def htlcevents2():
-	ws = await websockets.connect("wss://10.0.0.111:8080/v2/router/htlcevents?method=GET", ping_timeout=None, ping_interval=20, ssl=ssl_context, extra_headers=headers, max_size=1000000000)
-	# future = asyncio.run_coroutine_threadsafe(pinger(ws), loop)
-	print('waiting')
-	await asyncio.sleep(1)
-	print('priming')
-	await ws.send(json.dumps({}).encode('UTF-8'))
-	async for message in ws:
-		print('receiving')
-		try:
-			hi = await asyncio.wait_for(ws.recv(), timeout=5)
-			hi = json.loads(hi)
-			hi = hi['result']
-			htlce.append(hi)
-			pprint(hi)
-		except asyncio.TimeoutError:
-			print('timeout!')
-		except asyncio.CancelledError:
-			print("cancelled?")
+
 
 
 async def blockstream():
@@ -396,20 +345,14 @@ async def blockstream():
 		except asyncio.CancelledError:
 			print("cancelled?")
 
-async def main():
-	loop = asyncio.get_event_loop()
-	await htlcevents2()
-	# await lc()
-	# await blockstream()
 
-import threading
 
 def async_layer():
 	asyncio.run(main())
 
 # async thread
-x = threading.Thread(target=async_layer, daemon=True)
-x.start()
+
+
 
 async def fetch(client):
 	print('fetch')
@@ -423,10 +366,12 @@ async def main():
 		html = await fetch(client)
 		print(html)
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
 
 
+
+
+x = threading.Thread(target=async_layer, daemon=True)
+x.start()
 
 # Get channels and fees
 z = listGetChannelFees()

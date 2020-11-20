@@ -241,113 +241,11 @@ def sendPaymentV2(payreq, oid=None, lasthop=None, allow_self=False,fee_msat=3000
 		print(f"Error: payment_error {lnreq['payment_error']}")
 		return lnreq
 
-
-# Rebalance strategy
-# keep >500000 on local_balance
-# balanced < 0.5?
-def rebalanceV2(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
-	if not force:
-		accept = input(f'Rebalancing chan id: {outgoing_chan_id} --> {getAlias(last_hop_pubkey)}. Press: (y/n)')
-		if accept == 'y':
-			pass
-		else:
-			print('Rebalance canceled.')
-			return None, 0, None
-	payreq = addInvoice(amt,'balance1')['payment_request']
-	data,data2 = sendPaymentV2(payreq,outgoing_chan_id,last_hop_pubkey,True,fee_msat,1)
-	pprint(data)
-	# if data['payment_error'] != '':
-	# 	print("payment error")
-	# 	data['payment_error'].split('\n')[0]
-	# 	# Unsuccessful so costs 0 sats
-	# 	tf = 0
-	# else:
-	hops = pandas.DataFrame(data[0]['payment_route']['hops'])
-	# print(hops.columns)
-	hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
-	# This is the printout we want to see
-	print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
-	# print(hops.dtypes)
-	# print(hops.columns)
-	# tf = int(data['payment_route']['total_fees_msat'])/1000
-	# dur = (end-start).total_seconds()
-	# print(f'Total Routing Fees: {tf}')
-	# print(f'Payment Duration: {dur}')
-	return lnreq
-
-
 def htlcevents():
 	r = requests.get(url, headers=headers, verify=cert_path, stream=True)
 	for raw_response in r.iter_lines():
 		json_response = json.loads(raw_response)
 		print(json_response)
-
-def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
-	if not force:
-		accept = input(f'Rebalancing chan id: {outgoing_chan_id} --> {getAlias(last_hop_pubkey)}. Press: (y/n)')
-		if accept == 'y':
-			pass
-		else:
-			print('Rebalance canceled.')
-			return None, 0, None
-	payreq = addInvoice(amt,'balance1')['payment_request']
-	endpoint = '/v1/channels/transactions'
-	bdata = {}
-	bdata['fee_limit'] = {'fixed_msat': fee_msat}
-	bdata['outgoing_chan_id'] = f'{outgoing_chan_id}'
-	bdata['allow_self_payment'] = True
-	bdata['last_hop_pubkey'] = base64.b64encode(bytes.fromhex(last_hop_pubkey)).decode()
-	bdata['payment_request'] = payreq
-	url = base_url + endpoint
-	start = datetime.now()
-	lnreq = requests.post(url, headers=headers, verify=cert_path, data=json.dumps(bdata))
-	end = datetime.now()
-	data = lnreq.json()
-	hops = None
-	if data['payment_error'] != '':
-		print("payment error")
-		data['payment_error'].split('\n')[0]
-		print(data['payment_error'])
-		# Unsuccessful so costs 0 sats
-		tf = 0
-	else:
-		hops = pandas.DataFrame(data['payment_route']['hops'])
-		# print(hops.columns)
-		hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
-		# Get first and last hop
-		chans = list(hops.iloc[[0,-1]].chan_id)
-		print(f'hops and chans: {chans}')
-		# This is the printout we want to see
-		print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
-		print(listChannels().query('chan_id.isin(@chans)'))
-		# print(hops.dtypes)
-		# print(hops.columns)
-		tf = int(data['payment_route']['total_fees_msat'])/1000
-	dur = (end-start).total_seconds()
-	print(f'Total Routing Fees: {tf}')
-	print(f'Payment Duration: {dur}')
-	return tf,dur,lnreq,hops
-
-
-def listBalanceChannels(cid_list):
-	a = listChannels()
-	b = a.sort_values(by=['tobalance'])
-	c = b['chan_id'].to_frame()
-	# c.to_frame()
-	ilist = []
-	# Get index of rows we want to ignore
-	for idx, row in c.iterrows():
-		print(row[0])
-		print(idx)
-		if row[0] in cid_list:
-			ilist.append(idx)
-
-		# Drop indices
-	d = b.drop(ilist)
-	return d
-	# AUTO BALANCE SCRIPT!
-	# a[a['balanced'] > 0.5].apply(lambda x: rebalance(int(x['tobalance']),x['chan_id'],"032c17323caa51269b5124cf07a0c03772587ad8199e692cc3aae8397454367d34",4200),axis=1)
-
 
 def PayByRoute(route,pay_hash=None):
 	url = '/v1/channels/transactions/route'
@@ -384,7 +282,7 @@ def getChanPoint(chanid):
 	cp = lnreq['chan_point']
 	return cp
 
-def getPendingChannels():
+def listPendingChannels():
 	url = '/v1/channels/pending'
 	lnreq = sendGetRequest(url)
 	pending_types = list(set(lnreq.keys()) - {'total_limbo_balance'})
@@ -444,20 +342,24 @@ def getMyEdges():
 
 
 # ****** FEE INFO ******
-def updateChanPolicy(chan_point=None,out_index=0,fee_rate=0.000001,base_fee_msat=300,tld=40):
+def updateChanPolicy(chan_point=None,fee_rate=0.000001,base_fee_msat=300,tld=40,min_htlc=1):
 	url = '/v1/chanpolicy'
 	data = {
-		'global': True if chan_point is None else False,
-		'chan_point' : {
-			'funding_txid_bytes': base64.b64encode(bytes.fromhex(chan_point)).decode(),
-			'output_index': out_index
-		},
 		'time_lock_delta': tld,
-		'min_htlc_msat': 1000,
+		'min_htlc_msat': min_htlc,
 		'min_htlc_msat_specified': True,
 		'fee_rate': fee_rate,
-		'base_fee_msat': base_fee_msat,
-		}
+		'base_fee_msat': str(base_fee_msat),
+	}
+	
+	if chan_point == None:
+		data.update({'global': True})
+	else:
+		cp, out_index = chan_point.split(":")
+		data.update({'chan_point' : {
+			'funding_txid_bytes': base64.b64encode(bytes.fromhex(cp)).decode(),
+			'output_index': out_index
+		}})
 	lnreq = sendPostRequest(url,data)
 	print(lnreq)
 	return lnreq
@@ -657,6 +559,9 @@ def CID2ListPK(chanid):
 	list_pks = [ lnreq[akey] for akey in ['node1_pub','node2_pub'] ]
 	return list_pks
 
+def CID2Alias(chanid):
+	return getAlias(list( set ( CID2ListPK(chanid)) - set( [ getMyPk() ] ) )[0])
+
 def listChanFees(chan_id=None):
 	lnreq = sendGetRequest(url14)
 	z = pandas.DataFrame(lnreq['channel_fees'])
@@ -730,10 +635,8 @@ def getAlias(pubkey,index=True):
 			return "NONE/DELETED"
 
 def getNodeInfo(pubkey,channels=False):
-	url = '/v1/graph/node/{}'
-	if channels:
-		url = url + '?include_channels=true'
-	lnreq = sendGetRequest(url,pubkey)
+	url = f'/v1/graph/node/{pubkey}?include_channels={channels}'
+	lnreq = sendGetRequest(url)
 	try:
 		return lnreq
 	except KeyError as e:
@@ -808,8 +711,8 @@ def getNodeChannels2(pubkey):
 	# "03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019" in t.pubkey.values
 
 def decodePR(pr):
-	url = '/v1/payreq/{}'
-	lnreq = sendGetRequest(url,pr)
+	url = f'/v1/payreq/{pr}'
+	lnreq = sendGetRequest(url)
 	return lnreq
 
 # Receiving Functions
@@ -853,7 +756,7 @@ def listInvoices(max_invs=5000,offset=0,pending=False):
 def getForwards(days_past=30):
 	start = int( (datetime.now() - timedelta(days=days_past)).timestamp() )
 	end = int( datetime.now().timestamp() )
-	data = { 'start_time': start, 'end_time': end,'num_max_events':2000 }
+	data = { 'start_time': start, 'end_time': end,'num_max_events':10000 }
 	url = '/v1/switch'
 	lnreq = sendPostRequest(url,data)
 	fwd_frame = pandas.DataFrame(lnreq['forwarding_events'])
@@ -890,6 +793,7 @@ def fwdByDay(ff,days_past=30):
 		results.append((t.strftime("%Y-%m-%d"),num_fwds,fees))
 		t += timedelta(days = 1)
 	rframe = pandas.DataFrame(results)
+	rframe.columns = ['date','forwards','sats_earned']
 	return rframe
 
 # TODO: fix me, and figure out arrays!
@@ -992,6 +896,7 @@ def sendCoins(addr,amt,feerate=3,toself=False):
 	lnreq = sendPostRequest(url,data)
 	return lnreq
 
+# Need websockets to do this nicely!
 def closeChannel(channel_point,output_index=0,fee_rate=2,force=False):
 	url = f'/v1/channels/{channel_point}/{output_index}?force={force}&sat_per_byte={fee_rate}'
 	x = sendDeleteRequest(url)
@@ -1010,7 +915,7 @@ def closedChannels():
 def main():
 	print(f"Welcome to the LN: [bold cyan]{getMyAlias()}[/bold cyan].")
 	print(listChannels())
-	print("Must Import ...\n[bold red]from lnd_pyshell.lnd_rest import *[/bold red]")
+	print("[green]****[/green] [yellow]MUST IMPORT[/yellow] [green]****[/green] ...\n[bold yellow]from lnd_pyshell.lnd_rest import *[/bold yellow]")
 	code.interact(local=locals())
 
 
