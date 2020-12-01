@@ -544,24 +544,6 @@ def streamInvoices():
 		a = json.loads(line.decode("UTF-8"))
 		print(a)
 
-# Channel Point to Channel Id
-def CP2CID(chan_point, chan_list):
-	chan_list.reset_index(inplace=True)
-	a = chan_list[channel_point==chan_point]
-	return a.chan_id
-
-def CID2CP(chanid):
-	cp = getChanPoint(chanid)
-	return cp
-
-def CID2ListPK(chanid):
-	lnreq = getEdgeInfo(chanid)
-	list_pks = [ lnreq[akey] for akey in ['node1_pub','node2_pub'] ]
-	return list_pks
-
-def CID2Alias(chanid):
-	return getAlias(list( set ( CID2ListPK(chanid)) - set( [ getMyPk() ] ) )[0])
-
 def listChanFees(chan_id=None):
 	lnreq = sendGetRequest(url14)
 	z = pandas.DataFrame(lnreq['channel_fees'])
@@ -582,7 +564,6 @@ def listChanFees(chan_id=None):
 def exportChannelBackup(outfile):
 	url = '/v1/channels/backup'
 	lnreq = sendGetRequest(url)
-	w
 
 #post
 def verifyChannelBackup(infile):
@@ -689,26 +670,7 @@ def getNodeChannels2(pubkey):
 	a = pandas.DataFrame(chan)
 	a['alias'] = a.pubkey.apply(lambda x: getAlias(x) )
 	return a
-	# try:
-	# 	for i,row in channel_frame.iterrows():
-	# 		if row['node1_pub'] == None or row['node2_pub'] == None:
-	# 			chan.append({})
-	# 		if row['node1_pub'] != pubkey:
-	# 			chan.append({'chan_id':row['channel_id'],'pubkey':row['node1_pub'],**row['node1_policy']})
-	# 		else:
-	# 			chan.append({'chan_id':row['channel_id'],'pubkey':row['node2_pub'],**row['node2_policy']})
-	# except Exception as e:
-	# 	print(e)
-	# 	print(row)
-	# code.interact(local=locals())
-	# nodeframe = pandas.DataFrame(chan)
-	# nodeframe.fee_rate_milli_msat = nodeframe.fee_rate_milli_msat.astype(int)
-	# nodeframe.fee_base_msat = nodeframe.fee_base_msat.astype(int)
-	# nodeframe = nodeframe.sort_values(['fee_rate_milli_msat','fee_base_msat'])
 
-
-	# t = getNodeChannels2(getMyPK())
-	# "03a503d8e30f2ff407096d235b5db63b4fcf3f89a653acb6f43d3fc492a7674019" in t.pubkey.values
 
 def decodePR(pr):
 	url = f'/v1/payreq/{pr}'
@@ -734,6 +696,11 @@ def openInvoices():
 	invoices = listInvoices(pending=True)
 	invoices.value_msat = invoices.value_msat.astype(int)
 	return invoices
+
+def listPayments():
+	url = '/v1/payments'
+	lnreq = sendGetRequest(url)
+	payments = pandas.DataFrame(lnreq['payments'])
 
 def listInvoices(max_invs=5000,offset=0,pending=False):
 	url = '/v1/invoices'
@@ -765,6 +732,9 @@ def getForwards(days_past=30):
 	fwd_frame['dts'] = fwd_frame.dt.astype('str')
 	print(f'Number of Satoshi Made This Month: {pandas.to_numeric(fwd_frame["fee_msat"]).sum()/1000}!')
 	print(f'AVG Number of Satoshi Made Per Day: {pandas.to_numeric(fwd_frame["fee_msat"]).sum()/1000/days_past}!')
+	# TODO keep track of rebalance fees
+	# a['settle_date_h']=a['settle_date_h'].astype('str')
+	# a.query(f'settle_date_h.str.contains("2020-11-19")')
 	return fwd_frame
 
 def fwdsToday(ff):
@@ -915,9 +885,12 @@ def closedChannels():
 def main():
 	print(f"Welcome to the LN: [bold cyan]{getMyAlias()}[/bold cyan].")
 	print(listChannels())
-	print("[green]****[/green] [yellow]MUST IMPORT[/yellow] [green]****[/green] ...\n[bold yellow]from lnd_pyshell.lnd_rest import *[/bold yellow]")
+	print("[green]****[/green] [yellow]MUST IMPORT[/yellow] [green]****[/green] ...")
+	print("[bold yellow]from lnd_pyshell.lnd_rest import *[/bold yellow]")
+	print("[bold yellow]from lnd_pyshell.utils import *[/bold yellow]")
+	print("[bold yellow]from lnd_pyshell.rebalance import *[/bold yellow]")
+	print("[bold yellow]from time import sleep[/bold yellow]")
 	code.interact(local=locals())
-
 
 if __name__ == "__main__":
 	main()

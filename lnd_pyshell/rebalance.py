@@ -1,61 +1,6 @@
 from lnd_pyshell.lnd_rest import *
+from lnd_pyshell.utils import *
 from rich import print
-
-
-
-# Rebalance strategy
-# keep >500000 on local_balance
-# balanced < 0.5?
-def rebalanceV2(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
-	if not force:
-		accept = input(f'Rebalancing chan id: {outgoing_chan_id} --> {getAlias(last_hop_pubkey)}. Press: (y/n)')
-		if accept == 'y':
-			pass
-		else:
-			print('Rebalance canceled.')
-			return None, 0, None
-	payreq = addInvoice(amt,'balance1')['payment_request']
-	data,data2 = sendPaymentV2(payreq,outgoing_chan_id,last_hop_pubkey,True,fee_msat,1)
-	pprint(data)
-	# if data['payment_error'] != '':
-	# 	print("payment error")
-	# 	data['payment_error'].split('\n')[0]
-	# 	# Unsuccessful so costs 0 sats
-	# 	tf = 0
-	# else:
-	hops = pandas.DataFrame(data[0]['payment_route']['hops'])
-	# print(hops.columns)
-	hops['alias'] = hops.apply(lambda x: getAlias(x.pub_key), axis=1)
-	# This is the printout we want to see
-	print(hops[['alias','chan_id', 'chan_capacity', 'expiry', 'amt_to_forward_msat', 'fee_msat', 'pub_key']])
-	# print(hops.dtypes)
-	# print(hops.columns)
-	# tf = int(data['payment_route']['total_fees_msat'])/1000
-	# dur = (end-start).total_seconds()
-	# print(f'Total Routing Fees: {tf}')
-	# print(f'Payment Duration: {dur}')
-	return lnreq
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def rebalance(amt,outgoing_chan_id,last_hop_pubkey,fee_msat=4200, force=False):
 	print(f"Rebalancing chan id: { CID2Alias(outgoing_chan_id) } --> {getAlias(last_hop_pubkey)}. ")
@@ -123,47 +68,107 @@ def rebe():
 
 
 
-from time import sleep
-fee_total = 0
-while True:
-    fees, duration, r, hops =  rebe()
-    fee_total += fees
-    print(f"Total Fees: {fee_total}")
-    sleep(10)
+if __name__ == "__main__":
+	from time import sleep
+	listChannels().sort_values(by="capacity")
 
 
-from time import sleep
-listChannels().sort_values(by="capacity")
+	source = listChannels().query("balanced >= 0.80 ").query("active == True").sort_values(by='local_balance')
+	dry = listChannels().query("balanced >= 0.1 & balanced <= 0.6").query("active == True").sort_values(by='local_balance')
 
 
-source = listChannels().query("balanced >= 0.80 ").query("active == True").sort_values(by='local_balance')
-dry = listChannels().query("balanced >= 0.1 & balanced <= 0.6").query("active == True").sort_values(by='local_balance')
+	## **********************************
+	# Invert channel balances
+	## **********************************
 
-rebalance_amt = 100000
-max_fee_sats = 12000
-for lh in dry.remote_pubkey:
+	rebalance_amt = 200000
+	max_fee_sats = 7000
+	for lh in dry.remote_pubkey:
+		for cid in source.chan_id:
+			result = rebalance(rebalance_amt,cid,lh,max_fee_sats,True)
+			sleep(2)
+			error_msg = result[2].json()['payment_error']
+			print(f"Error Message: {error_msg}")
+			# no_route is worst result, usually wont fix itself
+			if error_msg == "no_route":
+				break
+			print("Retrying pair until failure")
+			retry = 0
+			# Found routes, hops frame is is not empty
+			while not result[3].empty:
+				print(f'Successfully sent {retry} times!')
+				result = rebalance(rebalance_amt,cid,lh,max_fee_sats,True)
+				retry += 1
+				print(result)
+				sleep(2)
+
+
+
+	## **********************************
+	# Rebalance a single depleted channel
+	## **********************************
+
+	source = listChannels().query("balanced >= 0.5").query("active == True").sort_values(by='local_balance')
+	target_lh = "03037dc08e9ac63b82581f79b662a4d0ceca8a8ca162b1af3551595b8f2d97b70a"
+	rebalance_amt = 200000
+	max_fee_sats = 15000
 	for cid in source.chan_id:
-		result = rebalance(rebalance_amt,cid,lh,max_fee_sats,True)
+		result = rebalance(rebalance_amt,cid,target_lh,max_fee_sats,True)
 		sleep(2)
 		error_msg = result[2].json()['payment_error']
 		print(f"Error Message: {error_msg}")
 		# no_route is worst result, usually wont fix itself
 		if error_msg == "no_route":
-			break
+			continue
 		print("Retrying pair until failure")
 		retry = 0
 		# Found routes, hops frame is is not empty
-		while not result[3].empty:
+		while error_msg != "no_route":
 			print(f'Successfully sent {retry} times!')
-			result = rebalance(rebalance_amt,cid,lh,max_fee_sats,True)
+			result = rebalance(rebalance_amt,cid,target_lh,max_fee_sats,True)
+			error_msg = result[2].json()['payment_error']
 			retry += 1
+			if retry > 25:
+				break
 			print(result)
 			sleep(2)
 
 
 
 
+		## **********************************
+		# 
+		## **********************************
+
+		a = getForwards()
+		dry = list(a.tail(200).chan_id_out.unique())
+		source = list(a.tail(200).chan_id_in.unique())
+
+		dry = listChannels().query("chan_id.isin(@dry)").query("balanced < 0.4")
+		source = listChannels().query("chan_id.isin(@source)").query("balanced > 0.6")
+
+		pandas.concat([adry,asrc],ignore_index=True).drop_duplicates().reset_index(drop=True)
+
+
+
+		from time import sleep
+		fee_total = 0
+		while True:
+			fees, duration, r, hops =  rebe()
+			fee_total += fees
+			print(f"Total Fees: {fee_total}")
+			sleep(10)
 
 
 
 
+
+		# get fees for channels
+		c = listChannels()
+		mypk = getMyPK()
+
+		d = getChanPolicy('693792936758935553')
+
+		d.query(f"pubkey != '{mypk}' ")[['time_lock_delta','min_htlc','fee_base_msat']]
+
+		c.chan_id.apply(lambda x: g.update({x:getChanPolicy(x).query(f"pubkey != '{mypk}' ")[['time_lock_delta','min_htlc','fee_base_msat']] } ) )
