@@ -21,6 +21,8 @@ import hashlib
 from rich import print
 import tempfile
 
+# SRC IMPORTS
+from lnd_pyshell.base_requests import *
 
 
 polar = False
@@ -680,7 +682,11 @@ def decodePR(pr):
 # Receiving Functions
 def addInvoice(amt,memo):
 	url = '/v1/invoices'
-	data = {'memo':memo,'value':amt}
+	data = {
+		'memo': memo,
+		'value': amt,
+		'expiry': "3600"
+	}
 	lnreq = sendPostRequest(url,data)
 	return lnreq
 

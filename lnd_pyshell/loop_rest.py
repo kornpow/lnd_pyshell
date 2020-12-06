@@ -7,18 +7,58 @@ import urllib.parse
 
 base_url = 'http://127.0.0.1:8081'
 
-def sendGetRequest(endpoint, data=""):
-	global base_url
-	target_url = base_url + endpoint.format(data)
-	print("Sending Request to URL: {}".format(target_url))
-	r = requests.get(target_url)
-	pprint(r.text)
-	return r.text
+LOOP_DIR = f'{os.getenv("HOME")}/.loop'
 
-def sendPostRequest(endpoint,data=""):
-	r = requests.post(base_url + endpoint, data=json.dumps(data))
-	pprint(r.json())
-	return r.json()
+print(LOOP_DIR)
+
+# *** Select mainnet or  ***
+CHAIN = 'mainnet'
+# CHAIN = 'testnet'
+
+macaroon_path = f'{LOOP_DIR}/{CHAIN}/loop.macaroon'
+if os.path.exists(macaroon_path):
+	macaroon = codecs.encode(open(macaroon_path, 'rb').read(), 'hex')
+
+
+#TODO: DRY use base_requests
+def sendPostRequest(endpoint,data={},debug=False):
+	url = base_url + endpoint
+	r = requests.post(url, headers=headers, verify=cert_path, data=json.dumps(data))
+	try:
+		return r.json()
+	except ValueError as e:
+		print(f"Error decoding JSON: {e}")
+		print(r)
+		return r
+
+
+def sendGetRequest(endpoint, ext="", body=None, debug=False):
+	url = base_url + endpoint.format(ext)
+	if debug:
+		print(f"GET: {url}")
+	r = requests.get(url, headers=headers, verify=cert_path, data=body)
+	try:
+		return r.json()
+	except ValueError as e:
+		print(f"Error decoding JSON: {e}")
+		print(r)
+		return r
+
+def sendDeleteRequest(endpoint, data="",debug=False):
+	url = base_url + endpoint
+	if debug:
+		print(f"DELETE: {url}")
+	r = requests.delete(url, headers=headers, verify=cert_path, data=json.dumps(data))
+	try:
+		return r.json()
+	except ValueError as e:
+		print(f"Error decoding JSON: {e}")
+		print(r)
+		return r
+
+
+
+
 
 
 def listSwaps():

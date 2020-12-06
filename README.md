@@ -8,6 +8,19 @@ pip3 install git+https://github.com/sako0938/lnd_pyshell.git
 ## Use
 ```python
 from lnd_pyshell.lnd_rest import *
+from lnd_pyshell.utils import *
+from lnd_pyshell.rebalance import *
+from time import sleep
+
+# get list of channels
+c = listChannels()
+
+# use a pandas query on the channel list!
+# *** find large channels with low balances ***
+c.query('local_balance <= 3000000 & capacity >= 4000000')
+
+# *** find channels that are balanced ***
+c.query('balanced > 0.4 & balanced < 0.6')
 ```
 
 ## Dependancies
