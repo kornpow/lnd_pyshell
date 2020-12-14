@@ -19,3 +19,35 @@ last_hop_fee = (fee_rate * amt) + base_fee
 print(f"Last Hop Fee: {last_hop_fee}")
 
 CID2ListPK(chanid)
+
+
+def getChanPolicy(chanid, pubkey=None, npk=None):
+    lnreq = getEdgeInfo(chanid)
+    try:
+        df = pandas.DataFrame.from_dict(
+            {
+                lnreq["node1_pub"]: lnreq["node1_policy"],
+                lnreq["node2_pub"]: lnreq["node2_policy"],
+            }
+        )
+        df = df.T
+        df.reset_index(inplace=True)
+        df.rename(columns={"index": "pubkey"}, inplace=True)
+        df["alias"] = df["pubkey"].apply(lambda x: getAlias(x))
+        # If things are null it doesnt return them!!
+        df = df.fillna(0)
+        # Only get info for one side of channel
+        if pubkey:
+            print("Including PK")
+            b = df[df.pubkey == pubkey]
+            return b
+        # Get info excluding one side
+        elif npk:
+            print("Excluding PK")
+            b = df.query(f'pubkey != "{npk}"')
+            return b
+        # print(df)
+        return df
+    except KeyError as e:
+        print(e)
+        return None

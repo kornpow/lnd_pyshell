@@ -121,20 +121,22 @@ def rebalance_alg():
     while cycles < 10:
         # Depleted channels
         depleted = listChannels().query(
-            "local_balance < 400000 and active == True and capacity > 1000000"
+            "balanced < 0.3 and active == True and capacity > 3000000"
         )
         num_depleted = depleted.shape[0]
         # Full channels
         glut = listChannels().query(
-            "remote_balance < 400000 and active == True and capacity > 1000000"
+            "balanced > 0.65 and active == True and capacity > 3000000"
         )
         num_glut = glut.shape[0]
         print(f"{num_glut} glut--> {num_depleted} depleted")
         source = glut.sample(1)
         dest = depleted.sample(1)
         print(f"{source.alias.item()} ---> {dest.alias.item()} ")
+        # rebalance between 100K and 250K sats
+        rebalance_amt = random.randint(100,250) * 1000
         a, b, c, d = rebalance(
-            100000, source.chan_id.item(), dest.remote_pubkey.item(), 8000, force=True
+            rebalance_amt, source.chan_id.item(), dest.remote_pubkey.item(), 8000, force=True
         )
         total_routing_fees += a
         error = c.json()["payment_error"]
@@ -155,7 +157,7 @@ def rebalance_alg():
                 error = c.json()["payment_error"]
                 total_routing_fees += a
                 looper += 1
-                if looper == 2:
+                if looper == 3:
                     break
 
 

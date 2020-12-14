@@ -304,56 +304,6 @@ def getNewAddress(old=False):
     return lnreq["address"]
 
 
-def getChanPoint(chanid):
-    lnreq = getEdgeInfo(chanid)
-    cp = lnreq["chan_point"]
-    return cp
-
-
-def listPendingChannels():
-    url = "/v1/channels/pending"
-    lnreq = sendGetRequest(url)
-    pending_types = list(set(lnreq.keys()) - {"total_limbo_balance"})
-    pending_types
-    # print(lnreq)
-    b = []
-    for a in lnreq["pending_open_channels"]:
-        a.update(**a["channel"])
-        del a["channel"]
-        b.append(a)
-    c = pandas.DataFrame(b)
-    c["alias"] = c.remote_node_pub.apply(lambda x: getAlias(x))
-    return c
-
-
-# ****** GRAPH ******
-def describeGraph():
-    url = "/v1/graph"
-    lnreq = sendGetRequest(url)
-    return lnreq
-
-
-def exportGraphToCSV(filename="graph.json"):
-    graph = describeGraph()
-    nodes = len(graph["nodes"])
-    edges = len(graph["edges"])
-    print(f"Found { nodes } nodes and { edges } edges in the graph")
-    b = None
-    with open(filename, "w") as f:
-        b = f.write(json.dumps(graph))
-        print(b)
-        print(f"Wrote {b/1024/1204}MB of graph data to: {filename}")
-
-
-def nodeMetrics():
-    # doesnt work
-    url = "/v1/graph/nodemetrics?types=1"
-    lnreq = sendGetRequest(url)
-    frame = pandas.DataFrame.from_dict(lnreq["betweenness_centrality"]).T
-    frame.reset_index(inplace=True)
-    frame.rename(columns={"index": "pubkey"}, inplace=True)
-    frame.sort_values(by="normalized_value", inplace=True)
-    return frame
 
 
 def channelMetrics():
@@ -376,9 +326,7 @@ def getMyEdges():
 
 
 # ****** FEE INFO ******
-def updateChanPolicy(
-    chan_point=None, fee_rate=0.000001, base_fee_msat=300, tld=40, min_htlc=None
-):
+def updateChanPolicy(chan_point=None, fee_rate=0.000001, base_fee_msat=300, tld=40, min_htlc=None):
     url = "/v1/chanpolicy"
     data = {
         "time_lock_delta": tld,
@@ -419,44 +367,6 @@ def feeReport():
 
 
 # ****** CHANNEL ******
-def getEdgeInfo(chanid):
-    url = f"/v1/graph/edge/{chanid}"
-    lnreq = sendGetRequest(url)
-    return lnreq
-
-
-def getChanPolicy(chanid, pubkey=None, npk=None):
-    lnreq = getEdgeInfo(chanid)
-    try:
-        df = pandas.DataFrame.from_dict(
-            {
-                lnreq["node1_pub"]: lnreq["node1_policy"],
-                lnreq["node2_pub"]: lnreq["node2_policy"],
-            }
-        )
-        df = df.T
-        df.reset_index(inplace=True)
-        df.rename(columns={"index": "pubkey"}, inplace=True)
-        df["alias"] = df["pubkey"].apply(lambda x: getAlias(x))
-        # If things are null it doesnt return them!!
-        df = df.fillna(0)
-        # Only get info for one side of channel
-        if pubkey:
-            print("Including PK")
-            b = df[df.pubkey == pubkey]
-            return b
-        # Get info excluding one side
-        elif npk:
-            print("Excluding PK")
-            b = df.query(f'pubkey != "{npk}"')
-            return b
-        # print(df)
-        return df
-    except KeyError as e:
-        print(e)
-        return None
-
-
 def getChannelDisabled(cid, mypk=None):
     # Build in optimization if PK is handy
     cframe = getChanPolicy(cid)
@@ -472,119 +382,6 @@ def getChannelDisabled(cid, mypk=None):
     return cstate
 
 
-def getBalance(row):
-    return row["local_balance"] / (row["local_balance"] + row["remote_balance"])
-
-
-def getChanSize(row):
-    return row["local_balance"] + row["remote_balance"]
-
-
-def getToBalance(row, target=500000):
-    return target - row["local_balance"]
-
-
-def listGetChannelFees():
-    # Get fee info to route through channel
-    data = []
-    c = listChannels()
-    c = c.sort_index()
-    for i in c.chan_id:
-        try:
-            chan_policy = (
-                getChanPolicy(i)
-                .query(f"pubkey != '{ getMyPK() }'")[
-                    ["pubkey", "min_htlc", "fee_base_msat", "fee_rate_milli_msat"]
-                ]
-                .to_dict("records")[0]
-            )
-            chan_policy["chan_id"] = i
-            data.append(chan_policy)
-        except KeyError as e:
-            print(f"Error for chan id: {i} --> {e}")
-    t = pandas.DataFrame(data)
-    c["fee_base_msat"] = t["fee_base_msat"].astype(int)
-    c["fee_rate_milli_msat"] = t["fee_rate_milli_msat"].astype(int)
-    channels_with_fees = c[
-        [
-            "active",
-            "alias",
-            "chan_id",
-            "remote_pubkey",
-            "fee_rate_milli_msat",
-            "fee_base_msat",
-            "balanced",
-            "local_balance",
-        ]
-    ]
-    channels_with_fees = channels_with_fees.sort_values(
-        ["fee_rate_milli_msat", "local_balance"], ascending=[1, 1]
-    )
-    # t.query("fee_rate_milli_msat < 6").sort_values(['balanced','fee_rate_milli_msat'],ascending=[1,1])
-    return channels_with_fees
-
-
-# z = listGetChannelFees()
-# z.query("fee_rate_milli_msat <= 10").sort_values(["balanced"],ascending=[1])
-
-
-def listChannels(chanpoint=None, all=False, disabled=False, private=False):
-    url = "/v1/channels"
-    if private:
-        url += "?private_only=true"
-    lnreq = sendGetRequest(url)
-    # Check if no channels
-    if not lnreq["channels"]:
-        return lnreq
-    # print(lnreq)
-    d = pandas.DataFrame(lnreq["channels"])
-    y = d[
-        [
-            "active",
-            "chan_id",
-            "channel_point",
-            "remote_pubkey",
-            "local_balance",
-            "remote_balance",
-            "capacity",
-        ]
-    ].fillna(0)
-    # Convert columns to integers
-    y[["local_balance", "remote_balance", "capacity"]] = y[
-        ["local_balance", "remote_balance", "capacity"]
-    ].apply(pandas.to_numeric, errors="coerce")
-    y["balanced"] = y.apply(getBalance, axis=1)
-    y["alias"] = y.apply(lambda x: getAlias(x.remote_pubkey), axis=1)
-    y["tobalance"] = y.apply(getToBalance, axis=1)
-    # y = y.sort_values(by=['balanced'])
-    y = y.sort_values(by=["local_balance"], ascending=False)
-    # y = y.sort_values(by=['balanced'])
-    # Get balance ratio of all channels
-    rb = y["remote_balance"].sum()
-    lb = y["local_balance"].sum()
-    print(f"Local to remote balance ratio: {lb/(lb+rb)}")
-    # y = y.set_index("channel_point")
-    if disabled:
-        pk = getMyPk()
-        y["d_cp"] = y.apply(lambda x: getChannelDisabled(x, pk), axis=1)
-    if chanpoint:
-        y = y[y.index == chanpoint]
-    if all:
-        return y
-    else:
-        return y[
-            [
-                "active",
-                "alias",
-                "balanced",
-                "capacity",
-                "local_balance",
-                "remote_balance",
-                "chan_id",
-                "remote_pubkey",
-            ]
-        ]
-
 
 def connectPeer(ln_at_url):
     url = "/v1/peers"
@@ -592,58 +389,6 @@ def connectPeer(ln_at_url):
     data = {"addr": {"pubkey": pubkey, "host": host}}
     lnreq = sendPostRequest(url, data)
     return lnreq
-
-
-def toSats(btcs):
-    return int(btcs * 100000000)
-
-
-def openChannel(ln_at_url, sats, fee=1, suc=False):
-    url = "/v1/channels"
-    # apk = f'{pk}'.encode('UTF-8')
-    print(connectPeer(ln_at_url))
-    pubkey, host = ln_at_url.split("@")
-    node_pubkey = base64.b64encode(bytes.fromhex(pubkey)).decode()
-    # 'node_pubkey_string': f'{pk}',
-    data = {
-        # 'node_pubkey_string': f'{pubkey}',
-        # This doesnt work but theoretically this is the better way
-        "node_pubkey": node_pubkey,
-        "spend_unconfirmed": suc,
-        "local_funding_amount": f"{sats}",
-        "sat_per_byte": f"{fee}",
-    }
-    print(data)
-    lnreq = sendPostRequest(url, data)
-    # if 'error' in lnreq.keys():
-    # pprint(lnreq)
-    try:
-        tx_b64 = base64.b64decode(lnreq["funding_txid_bytes"])
-        # KEY STEP: You have to reverse the byte order be able to look it up on an explorer
-        txid = codecs.encode(bytes(reversed(tx_b64)), "hex")
-        print(f"TXID: hex --> { txid } default --> {lnreq['funding_txid_bytes']}\n")
-        return txid
-    except KeyError:
-        error = lnreq["error"]
-        print(f"ERROR OPENING CHANNEL:\n\n{error}")
-        # Parse out the numbers in the failure, and do something with it
-        # d = [float(i) for i in list(map(lambda x: x if x.replace('.', '', 1).isdigit() else print(x),error.split(' '))) if i ]
-        # d = list(map(lambda x: int(x*100000000), d))
-        print("Unable to openchannel, amount error:")
-        f = tuple(
-            [toSats(float(s)) for s in error.split() if s.replace(".", "", 1).isdigit()]
-        )
-        print(f)
-        dif = f[0] - f[1]
-        print(dif)
-        chan_size_w_fee = sats - dif
-        print(
-            f"Transaction requires {dif} sats Fee. Try a smaller channel size {chan_size_w_fee} next time to use {fee} sat/byte!\n"
-        )
-        # print(d)
-        # print(d[0]-d[1])
-        return error
-
 
 def streamInvoices():
     url = base_url + "/v1/invoices/subscribe"
@@ -654,39 +399,6 @@ def streamInvoices():
         a = json.loads(line.decode("UTF-8"))
         print(a)
 
-
-def listChanFees(chan_id=None):
-    lnreq = sendGetRequest(url14)
-    z = pandas.DataFrame(lnreq["channel_fees"])
-    z = z.rename(columns={"chan_point": "channel_point"})
-    # z = z.set_index("channel_point")
-    clist = listChannels()
-    clist = clist.rename(columns={"remote_pubkey": "pubkey"})
-    # z['chan_id'] = z['channel_point'].apply(lambda x: CP2CID(x,clist) )
-    b = getChanPolicy(clist.iloc[0, :].chan_id, clist.iloc[0, :].remote_pubkey)
-    # getChanPolicy(a.iloc[0,:].chan_id,)
-    print(b)
-    c = b.join(z)
-    # x = chan_info.join(z).fillna(0)
-    return c
-
-
-# CHANNEL BACKUP
-def exportChannelBackup(outfile):
-    url = "/v1/channels/backup"
-    lnreq = sendGetRequest(url)
-
-
-# post
-def verifyChannelBackup(infile):
-    url = "/v1/channels/backup/verify"
-    lnreq = sendPostRequest(url)
-
-
-# post
-def importChannelBackup(infile):
-    url = "/v1/channels/backup/restore"
-    lnreq = sendPostRequest(url)
 
 
 # System Functions
@@ -1076,35 +788,9 @@ def sendCoins(addr, amt, feerate=3, toself=False):
     return lnreq
 
 
-# Need websockets to do this nicely!
-def closeChannel(channel_point, output_index=0, fee_rate=2, force=False):
-    url = f"/v1/channels/{channel_point}/{output_index}?force={force}&sat_per_byte={fee_rate}"
-    x = sendDeleteRequest(url)
-    return x
-    # DELETE /v1/channels/{channel_point.funding_txid_str}/{channel_point.output_index}
-
-
-def closedChannels():
-    url = "/v1/channels/closed"
-    lnreq = sendGetRequest(url)
-    c = pandas.DataFrame(lnreq["channels"])
-    closed_channels = c[
-        [
-            "remote_pubkey",
-            "close_type",
-            "open_initiator",
-            "settled_balance",
-            "close_height",
-            "close_initiator",
-        ]
-    ]
-    closed_channels["alias"] = closed_channels.apply(
-        lambda x: getAlias(x.remote_pubkey), axis=1
-    )
-    return closed_channels
-
-
 def main():
+    from lnd_pyshell.channels import listChannels
+    from lnd_pyshell.base_requests import sendGetRequest, sendPostRequest
     print(f"Welcome to the LN: [bold cyan]{getMyAlias()}[/bold cyan].")
     print(listChannels())
     print("[green]****[/green] [yellow]MUST IMPORT[/yellow] [green]****[/green] ...")

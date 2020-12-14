@@ -1,6 +1,6 @@
 # utils.py
-from lnd_pyshell.lnd_rest import getAlias, getChanPoint, getMyPK, getAlias
-
+from lnd_pyshell.lnd_rest import getAlias, getMyPK, getAlias
+from lnd_pyshell.channels import getChanPoint, getEdgeInfo
 
 # Channel Point to Channel Id
 def CP2CID(chan_point, chan_list):
@@ -34,3 +34,10 @@ def CID2Alias(chanid):
     *** ONLY WORKS WITH CHANNEL PARTNERS TO YOUR OWN NODE ***
     """
     return getAlias(list(set(CID2ListPK(chanid)) - set([getMyPK()]))[0])
+
+
+def toSats(btcs):
+    return int(btcs * 100000000)
+
+def toBTCs(sats):
+    return sats / 1e8
