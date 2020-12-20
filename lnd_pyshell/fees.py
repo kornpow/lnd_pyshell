@@ -51,3 +51,44 @@ def getChanPolicy(chanid, pubkey=None, npk=None):
     except KeyError as e:
         print(e)
         return None
+
+
+# ****** FEE INFO ******
+def updateChanPolicy(chan_point=None, fee_rate=0.000001, base_fee_msat=300, tld=40, min_htlc=None):
+    url = "/v1/chanpolicy"
+    data = {
+        "time_lock_delta": tld,
+        "min_htlc_msat_specified": False,
+        "fee_rate": fee_rate,
+        "base_fee_msat": str(base_fee_msat),
+        "max_htlc_msat": str(2000000000),
+    }
+    if min_htlc != None:
+        data.update({"min_htlc_msat": min_htlc, "min_htlc_msat_specified": True})
+    if chan_point == None:
+        data.update({"global": True})
+    else:
+        cp, out_index = chan_point.split(":")
+        pc = bytearray.fromhex(cp)
+        pc.reverse()
+        pc = binascii.hexlify(pc).decode()
+        data.update(
+            {
+                "chan_point": {
+                    "funding_txid_bytes": base64.b64encode(bytes.fromhex(pc)).decode(),
+                    "output_index": out_index,
+                }
+            }
+        )
+    print(f"Using Data: {data}")
+    lnreq = sendPostRequest(url, data)
+    print(lnreq)
+    return lnreq
+
+
+def feeReport():
+    url = "/v1/fees"
+    lnreq = sendGetRequest(url)
+    fee_frame = pandas.DataFrame(lnreq["channel_fees"])
+    fee_frame["alias"] = fee_frame.chan_id.apply(lambda x: CID2Alias(x))
+    return fee_frame

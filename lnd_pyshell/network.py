@@ -28,3 +28,21 @@ def nodeMetrics():
     frame.rename(columns={"index": "pubkey"}, inplace=True)
     frame.sort_values(by="normalized_value", inplace=True)
     return frame
+
+def channelMetrics():
+    chans = list(listChannels().remote_pubkey)
+    a = nodeMetrics()
+    b = a.query("pubkey.isin(@chans)")
+    # b.sort_values(by="normalized_value",inplace=True)
+    return b
+
+
+def getMyEdges():
+    graph = describeGraph()
+    edges = graph["edges"]
+    eframe = pandas.DataFrame(edges)
+    mpk = getMyPk()
+    myedges = eframe.query(
+        f'node1_pub.str.contains("{mpk}") | node2_pub.str.contains("{mpk}")'
+    )
+    return myedges

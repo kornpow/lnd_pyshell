@@ -2,6 +2,44 @@ from lnd_pyshell.lnd_rest import *
 from lnd_pyshell.utils import *
 from rich import print
 
+# TODO: fix me, and figure out arrays!
+def queryRoute(
+    src_pk, dest_pk, oid=None, lh=None, pay_amt=123, ignore_list=None, frame=False
+):
+    # base64.b64encode(bytes.fromhex(last_hop_pubkey)).decode()
+    c = listChannels()
+    c["pk64"] = c["remote_pubkey"].apply(
+        lambda x: base64.urlsafe_b64encode(bytes.fromhex(x)).decode()
+    )
+    # outgoing_chan_id
+    # last_hop_pubkey
+    # Convert HEX pubkeys to to base64
+    # for node in ignore_list:
+    # 	ig64 = base64.b64encode(bytes.fromhex(node)).decode().replace('+','-').replace('/','_')
+    # 	id_url_safe = ignore
+    # 	id_percent_encoded = urllib.parse.quote(id_url_safe)
+    target_url = f"/v1/graph/routes/{dest_pk}/{pay_amt}?source_pub_key={src_pk}"
+    target_url += (
+        f"&use_mission_control=true&fee_limit.fixed_msat=444000"
+    )
+    # target_url + f"&ignored_nodes="
+    if lh:
+        target_url + f"&last_hop_pubkey={lh}"
+    if oid:
+        target_url + f"&outgoing_chan_id={oid}"
+    lnreq = sendGetRequest(target_url)
+    if frame:
+        f = lnreq["routes"][0]
+        f["total_fees_msat"] = "0"
+        f["total_fees"] = "0"
+        return f
+    hops = lnreq["routes"][0]["hops"]
+    hoplist = []
+    for hop in hops:
+        hoplist.append(hop)
+    # It only ever returns 1 route
+    return lnreq["routes"][0]["hops"]
+
 
 def rebalance(amt, outgoing_chan_id, last_hop_pubkey, fee_msat=4200, force=False):
     print(
@@ -67,8 +105,50 @@ def rebalance(amt, outgoing_chan_id, last_hop_pubkey, fee_msat=4200, force=False
     return tf, dur, lnreq, hops
 
 
-# if __name ==
-
+def rebalance_alg():
+    cycles = 0
+    total_routing_fees = 0
+    while cycles < 10:
+        # Depleted channels
+        depleted = listChannels().query(
+            "balanced < 0.3 and active == True and capacity > 3000000"
+        )
+        num_depleted = depleted.shape[0]
+        # Full channels
+        glut = listChannels().query(
+            "balanced > 0.65 and active == True and capacity > 3000000"
+        )
+        num_glut = glut.shape[0]
+        print(f"{num_glut} glut--> {num_depleted} depleted")
+        source = glut.sample(1)
+        dest = depleted.sample(1)
+        print(f"{source.alias.item()} ---> {dest.alias.item()} ")
+        # rebalance between 100K and 250K sats
+        rebalance_amt = random.randint(100,250) * 1000
+        a, b, c, d = rebalance(
+            rebalance_amt, source.chan_id.item(), dest.remote_pubkey.item(), 8000, force=True
+        )
+        total_routing_fees += a
+        error = c.json()["payment_error"]
+        print(f"Payment Response: {error}")
+        print(f"Total Routing Fees: {total_routing_fees}")
+        if error == "":
+            cycles += 1
+            print("Successful route")
+            looper = 0
+            while error == "":
+                a, b, c, d = rebalance(
+                    100000,
+                    source.chan_id.item(),
+                    dest.remote_pubkey.item(),
+                    8000,
+                    force=True,
+                )
+                error = c.json()["payment_error"]
+                total_routing_fees += a
+                looper += 1
+                if looper == 3:
+                    break
 
 def rebe():
     # Source sats

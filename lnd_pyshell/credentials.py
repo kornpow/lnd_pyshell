@@ -16,6 +16,7 @@ permissions = [
 bake_file = "chaos.macaroon"
 print(f"lncli bakemacaroon --save_to {bake_file} {' '.join(permissions)}")
 
+## Convert the Macaroon and TLS certificate files to HEX format, to use as an environment variable.
 # *** TLS ***
 # Default in ASCII format
 with open("tls.cert", "rb") as f:
