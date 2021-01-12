@@ -8,7 +8,7 @@ import base64
 from lnd_pyshell.base_requests import *
 
 
-def rebalanceInvoice(amt_min,amt_max):
+def rebalanceInvoice(amt_min,amt_max,max_active_invoices=5):
     """
     Get a random specially marked valid invoice in a specific range.
     If an valid invoice does not exist, create a new one.
@@ -17,19 +17,32 @@ def rebalanceInvoice(amt_min,amt_max):
     amt_max_msat = amt_max * 1000
     c = listInvoices(max_invs=5, offset=0, pending=False)
     c = c.query('memo == "rebalance" and state == "OPEN"')
-    c['value_msat'] = c.value_msat.astype('int')
-    c = c.query("@amt_min_msat < value_msat < @amt_max_msat")
-    if not c.empty:
-        c.sample()
-    else:
+    # If no valid invoices available, create one
+    if c.empty:
+        print("No invoices available, creating a new payment request!")
         amount = randint(amt_min, amt_max)
         addInvoice(amount, "rebalance")
-        c.sample()
-    return 
+    if c.shape[0] < 5:
+        print("Less than max invoices available, creating a new payment request!")
+        amount = randint(amt_min, amt_max)
+        addInvoice(amount, "rebalance")       
+    # Do some conversions and filterings
+    c = listInvoices(max_invs=5, offset=0, pending=False)
+    c['value_msat'] = c.value_msat.astype('int')
+    c = c.query('memo == "rebalance" and state == "OPEN"')
+    c = c.query("@amt_min_msat < value_msat < @amt_max_msat")
+    # Get the desired rhash and find the pay req that goes with it
+    selection = c.sample()
+    rhash = selection.r_hash.item()
+    amt = selection.value_msat.item() / 1000
+    inv = lookupInvoice(rhash)
+    return inv["payment_request"], amt
 
+#broken?
 # Receiving Functions
 def addInvoice(amt, memo,expiry=3600):
     url = "/v1/invoices"
+    test = "3600"
     data = {"memo": memo, "value": amt, "expiry": str(expiry)}
     lnreq = sendPostRequest(url, data)
     return lnreq
@@ -59,7 +72,6 @@ def listInvoices(max_invs=5000, offset=0, pending=False):
     print("Available Data Columns: ")
     print(df.columns)
     df = df.fillna("0")
-    # print(df[['memo','amt_paid_sat','state','settled','creation_date','settle_date','r_preimage']])
     df["creation_date_h"] = df.apply(
         lambda x: datetime.fromtimestamp(int(x["creation_date"]))
         if int(x["settle_date"]) != 0
@@ -72,8 +84,6 @@ def listInvoices(max_invs=5000, offset=0, pending=False):
         else 0,
         axis=1,
     )
-    # df['alias'] = Series(b).apply(lambda x: getAlias(x), axis=1 )
-    # b= list(a.index)
     base_columns = [
         "memo",
         "r_hash",
@@ -86,5 +96,3 @@ def listInvoices(max_invs=5000, offset=0, pending=False):
         "amt_paid_msat",
     ]
     return df[base_columns]
-    # return df[['memo','amt_paid_sat','state','creation_date_h','settle_date_h','htlcs']]
-    # datetime.fromtimestamp(x['creation_date'])

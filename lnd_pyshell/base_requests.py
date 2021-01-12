@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import tempfile
+import codecs
 
 # Loop support?
 LND = False

@@ -1,6 +1,8 @@
+import pandas
+from datetime import datetime, timedelta
 
+from lnd_pyshell.base_requests import *
 
-# def getForwards(start,end):
 def getForwards(days_past=30):
     start = int((datetime.now() - timedelta(days=days_past)).timestamp())
     end = int(datetime.now().timestamp())

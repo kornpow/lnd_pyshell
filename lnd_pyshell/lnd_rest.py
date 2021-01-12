@@ -3,6 +3,8 @@ import base64, codecs, json, requests
 import binascii
 import io
 import code
+# from rich import print
+
 from pprint import pprint, pformat
 import pandas
 from pandas import Series
@@ -19,7 +21,7 @@ import traceback
 import os
 import urllib.parse
 import hashlib
-from rich import print
+
 import tempfile
 
 # SRC IMPORTS
@@ -322,6 +324,8 @@ def main():
     print("[bold yellow]from lnd_pyshell.lnd_rest import *[/bold yellow]")
     print("[bold yellow]from lnd_pyshell.utils import *[/bold yellow]")
     print("[bold yellow]from lnd_pyshell.rebalance import *[/bold yellow]")
+    print("[bold yellow]from lnd_pyshell.invoices import *[/bold yellow]")
+    print("[bold yellow]from lnd_pyshell.channels import *[/bold yellow]")
     print("[bold yellow]from time import sleep[/bold yellow]")
     code.interact(local=locals())
 

@@ -22,6 +22,14 @@ c.query('local_balance <= 3000000 & capacity >= 4000000')
 # *** find channels that are balanced ***
 c.query('balanced > 0.4 & balanced < 0.6')
 ```
+## Development
+Uses the awesome poetry package manager!
+```
+poetry shell
+poetry install
+poetry run lnd_pyshell
+```
+
 
 ## Dependancies
 ```

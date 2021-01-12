@@ -21,7 +21,8 @@ def CID2CP(chanid):
 def CID2ListPK(chanid):
     try:
         lnreq = getEdgeInfo(chanid)
-        list_pks = [lnreq[akey] for akey in ["node1_pub", "node2_pub"]]
+        list_pks = lnreq[['node1_pub','node2_pub']].values.tolist()[0]
+        # list_pks = [lnreq[akey] for akey in ["node1_pub", "node2_pub"]]
         return list_pks
     except KeyError as e:
         print("Missing Edge??")

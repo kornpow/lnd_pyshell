@@ -10,9 +10,14 @@ def getChanPoint(chanid):
 	return cp
 
 def getEdgeInfo(chanid):
+    """
+    """
     url = f"/v1/graph/edge/{chanid}"
     lnreq = sendGetRequest(url)
-    return lnreq
+    lnreq.pop("node1_policy")
+    lnreq.pop("node2_policy")
+    a = pandas.DataFrame(lnreq,index=[0])
+    return a
 
 def openChannel(ln_at_url, sats, fee=1, suc=False):
     url = "/v1/channels"
