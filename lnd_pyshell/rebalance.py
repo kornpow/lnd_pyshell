@@ -1,5 +1,6 @@
 from lnd_pyshell.lnd_rest import *
 from lnd_pyshell.utils import *
+from lnd_pyshell.invoices import *
 from rich import print
 
 # TODO: fix me, and figure out arrays!
@@ -52,7 +53,9 @@ def rebalance(amt, outgoing_chan_id, last_hop_pubkey, fee_msat=4200, force=False
         else:
             print("Rebalance canceled.")
             return None, 0, None
-    payreq = addInvoice(amt, "balance1")["payment_request"]
+    # payreq = addInvoice(amt, "balance1")["payment_request"]
+    payreq, amt = rebalanceInvoice(110000,300000)
+    print(f"Retrieved Request: {payreq}")
     endpoint = "/v1/channels/transactions"
     bdata = {}
     bdata["fee_limit"] = {"fixed_msat": fee_msat}

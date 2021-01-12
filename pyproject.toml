@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lnd_pyshell"
-version = "0.1.5"
+version = "0.1.6"
 description = ""
 authors = ["Kornpow <test@email.com>"]
 
