@@ -1,4 +1,7 @@
 # network.py
+import pandas
+from lnd_pyshell.base_requests import *
+from lnd_pyshell.channels import *
 
 # ****** GRAPH ******
 def describeGraph():

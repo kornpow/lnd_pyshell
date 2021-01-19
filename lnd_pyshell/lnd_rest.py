@@ -3,7 +3,7 @@ import base64, codecs, json, requests
 import binascii
 import io
 import code
-# from rich import print
+from rich import print
 
 from pprint import pprint, pformat
 import pandas
