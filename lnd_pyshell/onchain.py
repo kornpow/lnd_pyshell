@@ -2,6 +2,12 @@ import os
 from datetime import datetime, timedelta
 import pandas
 from lnd_pyshell.base_requests import *
+from lnd_pyshell.channels import listChannels
+# from lnd_pyshell.
+
+
+def getBlockHeight():
+    return getInfo()["block_height"]
 
 # ON-CHAIN
 def createWallet():

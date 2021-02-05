@@ -1,3 +1,22 @@
+import os
+from datetime import datetime, timedelta
+import base64
+import json
+
+import pandas
+
+from lnd_pyshell.base_requests import *
+from lnd_pyshell.channels import listChannels
+
+
+
+
+def decodePR(pr):
+    url = f"/v1/payreq/{pr}"
+    lnreq = sendGetRequest(url)
+    return lnreq
+
+
 ##### Route
 # listChannels().query('alias == "yalls.org"')
 # hops = pandas.DataFrame(buildRoute()['route']['hops'])
@@ -14,12 +33,6 @@ def buildRoute(hops, amt=1, cltv_delta=40):
     return lnreq["route"]
 
 
-# paymentHash: sha("sha256").update(preImage).digest(),
-# invoice = addInvoice(10000,'testcustomroute')
-
-# sendRoute()
-
-
 def sendRoute(r_hash, route):
     # Send directly to route
     url = "/v2/router/route/send"
@@ -31,7 +44,6 @@ def sendRoute(r_hash, route):
     data["route"] = route
     lnreq = sendPostRequest(url, data)
     return lnreq
-
 
 
 ##### Payment Functions
@@ -111,6 +123,14 @@ def sendPaymentV2(
     except KeyError as e:
         print(f"Error: payment_error {lnreq['payment_error']}")
         return lnreq
+
+
+
+def listPayments():
+    url = "/v1/payments"
+    lnreq = sendGetRequest(url)
+    payments = pandas.DataFrame(lnreq["payments"])
+
 
 
 def htlcevents():

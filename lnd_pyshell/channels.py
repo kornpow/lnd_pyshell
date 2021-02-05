@@ -1,7 +1,7 @@
 import base64
 import pandas
 from lnd_pyshell.base_requests import sendGetRequest, sendPostRequest
-from lnd_pyshell.lnd_rest import getAlias
+# from lnd_pyshell.network import getAlias
 
 
 def getChanPoint(chanid):

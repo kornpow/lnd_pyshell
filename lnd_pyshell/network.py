@@ -3,6 +3,76 @@ import pandas
 from lnd_pyshell.base_requests import *
 from lnd_pyshell.channels import *
 
+
+def getMyAlias():
+    myalias = getAlias(getMyPK())
+    return myalias
+
+
+def getInfo(frame=False):
+    url = "/v1/getinfo"
+    lnreq = sendGetRequest(url)
+    if frame:
+        lnframe = pandas.DataFrame(lnreq)
+        return lnframe
+    return lnreq
+
+
+def getMyPK():
+    return getInfo()["identity_pubkey"]
+
+
+def getAlias(pubkey, index=True):
+    try:
+        # Attempt to use index names first
+        pkdb1 = {}
+        alias = pkdb1[pubkey]
+        yield alias
+    except KeyError as e:
+        try:
+            lnreq = getNodeInfo(pubkey)
+            alias = lnreq["node"]["alias"]
+            pkdb.update({pubkey: alias})
+            yield lnreq["node"]["alias"]
+        except KeyError as e:
+            print(f"{pubkey} doesn't have an alias? Error: {e}")
+            yield "NONE/DELETED"
+
+
+def connectPeer(ln_at_url):
+    url = "/v1/peers"
+    pubkey, host = ln_at_url.split("@")
+    data = {"addr": {"pubkey": pubkey, "host": host}}
+    lnreq = sendPostRequest(url, data)
+    return lnreq
+
+
+def getNodeInfo(pubkey, channels=False):
+    url = f"/v1/graph/node/{pubkey}?include_channels={channels}"
+    lnreq = sendGetRequest(url)
+    try:
+        return lnreq
+    except KeyError as e:
+        print(f"{pubkey} doesn't have an alias? Error: {e}")
+        return "NONE?"
+    return lnreq
+
+
+def getNodeURI(pubkey, clearnet=False):
+    """
+    Get a connection string for a given node. Will default to a TOR address if available
+
+    pubkey: pubkey of node to get connection string for
+    clearnet: whether to override the TOR URL default
+    """
+    nodeinfo = getNodeInfo(pubkey)
+    addresses = nodeinfo["node"]["addresses"]
+    addrs = []
+    for address in addresses:
+        addrs.append(f"{pubkey}@{address['addr']}")
+    return addrs
+
+
 # ****** GRAPH ******
 def describeGraph():
     url = "/v1/graph"

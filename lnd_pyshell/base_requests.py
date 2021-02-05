@@ -51,7 +51,8 @@ base_url = f'https://{os.getenv("NODE_IP")}:{port}'
 
 def sendPostRequest(endpoint, data={}, debug=False):
     url = base_url + endpoint
-    r = requests.post(url, headers=headers, verify=cert_path, data=json.dumps(data))
+    # r = requests.post(url, headers=headers, verify=cert_path, data=json.dumps(data))
+    r = requests.post(url, headers=headers, data=json.dumps(data))
     try:
         return r.json()
     except ValueError as e:
@@ -64,7 +65,10 @@ def sendGetRequest(endpoint, ext="", body=None, debug=False):
     url = base_url + endpoint.format(ext)
     if debug:
         print(f"GET: {url}")
-    r = requests.get(url, headers=headers, verify=cert_path, data=body)
+    # r = requests.get(url, headers=headers, verify=cert_path, data=body)
+    # r = requests.get(url, headers=headers, data=body)
+    # r = requests.get(url, headers=headers, verify=cert_path, data=body)
+    r = requests.get(url, headers=headers, verify=None, data=body)
     try:
         return r.json()
     except ValueError as e:
@@ -77,7 +81,8 @@ def sendDeleteRequest(endpoint, data="", debug=False):
     url = base_url + endpoint
     if debug:
         print(f"DELETE: {url}")
-    r = requests.delete(url, headers=headers, verify=cert_path, data=json.dumps(data))
+    # r = requests.delete(url, headers=headers, verify=cert_path, data=json.dumps(data))
+    r = requests.delete(url, headers=headers, data=json.dumps(data))
     try:
         return r.json()
     except ValueError as e:

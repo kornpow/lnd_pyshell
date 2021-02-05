@@ -3,10 +3,20 @@ import pandas
 from random import randint
 from pprint import pprint
 import base64
+import json
 
 # SRC IMPORTS
 from lnd_pyshell.base_requests import *
 
+
+def streamInvoices():
+    url = base_url + "/v1/invoices/subscribe"
+    r = requests.get(
+        url + "?add_index=1", stream=True, headers=headers, verify=cert_path
+    )
+    for line in r.iter_lines():
+        a = json.loads(line.decode("UTF-8"))
+        print(a)
 
 def rebalanceInvoice(amt_min,amt_max,max_active_invoices=5):
     """
