@@ -1,8 +1,14 @@
 import base64
 import pandas
 from lnd_pyshell.base_requests import sendGetRequest, sendPostRequest
-# from lnd_pyshell.network import getAlias
+# from lnd_pyshell.utils import toSats
 
+def connectPeer(ln_at_url):
+    url = "/v1/peers"
+    pubkey, host = ln_at_url.split("@")
+    data = {"addr": {"pubkey": pubkey, "host": host}}
+    lnreq = sendPostRequest(url, data)
+    return lnreq
 
 def getChanPoint(chanid):
 	lnreq = getEdgeInfo(chanid)
@@ -94,6 +100,7 @@ def listChannels(chanpoint=None, all=False, disabled=False, private=False):
     lnreq = sendGetRequest(url)
     # Check if no channels
     if not lnreq["channels"]:
+        print("No Channels Available!")
         return lnreq
     # print(lnreq)
     d = pandas.DataFrame(lnreq["channels"])

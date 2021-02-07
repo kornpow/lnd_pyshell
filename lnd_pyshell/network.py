@@ -39,14 +39,6 @@ def getAlias(pubkey, index=True):
             yield "NONE/DELETED"
 
 
-def connectPeer(ln_at_url):
-    url = "/v1/peers"
-    pubkey, host = ln_at_url.split("@")
-    data = {"addr": {"pubkey": pubkey, "host": host}}
-    lnreq = sendPostRequest(url, data)
-    return lnreq
-
-
 def getNodeInfo(pubkey, channels=False):
     url = f"/v1/graph/node/{pubkey}?include_channels={channels}"
     lnreq = sendGetRequest(url)
