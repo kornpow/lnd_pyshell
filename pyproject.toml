@@ -17,7 +17,7 @@ pytest = "^3.4"
 
 
 [tool.poetry.scripts]
-lnd_pyshell = "lnd_pyshell.lnd_rest:main"
+#lnd_pyshell = "lnd_pyshell.client:main"
 
 [build-system]
 requires = ["poetry>=0.12"]

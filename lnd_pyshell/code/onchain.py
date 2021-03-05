@@ -6,6 +6,12 @@ from lnd_pyshell.channels import listChannels
 # from lnd_pyshell.
 
 
+
+# class onchain(object):
+#     def __init__(self, ):
+#         pass
+
+
 def getBlockHeight():
     return getInfo()["block_height"]
 

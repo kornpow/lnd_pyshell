@@ -31,13 +31,13 @@ else:
 
 cert_path = LND_DIR + "/tls.cert"
 if not os.path.exists(cert_path):
-    tls = os.getenv("TLS")
-    a = bytes.fromhex(tls)
-    fp = tempfile.NamedTemporaryFile()
-    fn = fp.name
-    fp.write(a)
-    fp.seek(0)
-    cert_path = fn
+tls = os.getenv("TLS")
+a = bytes.fromhex(tls)
+fp = tempfile.NamedTemporaryFile()
+fn = fp.name
+fp.write(a)
+fp.seek(0)
+cert_path = fn
 
 
 headers = {"Grpc-Metadata-macaroon": macaroon}
