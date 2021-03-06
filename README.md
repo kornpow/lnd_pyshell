@@ -30,6 +30,10 @@ poetry install
 poetry run lnd_pyshell
 ```
 
+## Obtain HEX Encoded Credentials
+xxd -plain ~/.lnd/tls.cert | tr -d '\n'
+xxd -plain ~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon | tr -d '\n'
+
 
 ## Dependancies
 ```
@@ -48,10 +52,6 @@ source env/bin/activate
 # Install Python dependancies
 pip3 install pandas requests
 ```
-
-## Obtain Base64 Encoded Credentials
-cat ~/.lnd/tls.cert | base 64 -w 0
-cat ~/.lnd/data/chain/bitcoin/mainnet/readonly.macaroon | base 64 -w 0
 
 ## Usage Instructions
 ```bash

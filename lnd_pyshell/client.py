@@ -8,7 +8,7 @@ import os
 import os
 import code
 
-import lnd_pyshell.utils as utils
+import utils
 from exceptions import handle_error_response
 from session import LNDAPISession
 
@@ -26,7 +26,7 @@ class LNDRestAPI(object):
         """
 
         if host == None:
-            self.host = os.getenv("NODE_IP")
+            self.host = "https://" + os.getenv("NODE_IP") + ":8080"
 
         self.session = LNDAPISession()
 
@@ -41,6 +41,12 @@ class LNDRestAPI(object):
 
     def get_connection_info(self):
         print(f"Host: {self.host}")
+
+    def get(self, endpoint):
+        return self._request("GET",endpoint)
+
+    def post(self, endpoint, data):
+        return self._request("POST",endpoint,data)
 
     def _request(self, method, url, data={}, request_id: int = 0):
         resp = self.session.request(method, self.url(url), json=data)
